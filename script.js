@@ -2,6 +2,8 @@ const MAX_MONTH = 36;
 const BASE_LIVING_COST = 170000;
 const INVEST_AMOUNT = 50000;
 const REFRESH_COOLDOWN = 4;
+const REBALANCE_COOLDOWN = 6;
+const TARGET_NET_WORTH = 1500000;
 const LIFE_PLAN_COST = [170000, 160000, 155000, 150000];
 
 const actionLabels = {
@@ -38,6 +40,12 @@ const events = {
   ledger:["GOOD","家計簿が続いた","お金の流れが見えた。","現金 +10,000 / ストレス -5",s=>{s.cash+=10000;s.stress-=5}],
   sellStuff:["GOOD","不用品を売った","家が片付き資金も増えた。","現金 +15,000",s=>{s.cash+=15000}],
   savingFatigue:["WARN","節約疲れ","我慢で疲れが出た。","ストレス +8",s=>{s.stress+=8}],
+  catPark:["GOOD","公園の猫と遊んだ","少し癒やされて気分転換。","ストレス -5",s=>{s.stress-=5}],
+  bath:["GOOD","湯船にゆっくり浸かった","体がほぐれた。","体力 +5 / ストレス -5",s=>{s.hp+=5;s.stress-=5}],
+  lateNight:["WARN","夜ふかしした","翌朝に疲れが残った。","体力 -8",s=>{s.hp-=8}],
+  doomscroll:["WARN","スマホを見すぎた","時間を溶かしてしまった。","体力 -3 / ストレス +5",s=>{s.hp-=3;s.stress+=5}],
+  friendTalk:["GOOD","友人と話した","気持ちが軽くなった。","ストレス -8",s=>{s.stress-=8}],
+
 };
 
 const $ = id => document.getElementById(id);
@@ -48,25 +56,27 @@ const net=()=>Math.round(state.cash+state.investmentBalance-state.debt);
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
 
-function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産100万円を目指そう。";render();}
+function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産150万円を目指そう。";render();}
 function canSell(){return state.investmentBalance>0&&state.lastInvestMonth!==state.month;}
 
 function pickEvent(action){
   let pool=[];
-  if(action==="work") pool=["overtime","review","mistake","save","bonus","expense"];
+  if(action==="work") pool=["overtime","review","mistake","catPark","doomscroll","save","expense"];
   if(action==="sidejob") pool=["sideSuccess","deadline","sideCancel","mainImpact","sleep","waste"];
-  if(action==="rest") pool=["recovery","refreshMood","save","bonus","waste","expense"];
+  if(action==="rest") pool=["recovery","refreshMood","catPark","bath","friendTalk","save","waste","lateNight"];
   if(action==="invest") pool=["investUp","investDown","marketFear","bonus","expense"];
   if(action==="borrow") pool=["debtPressure","paymentNotice","expense","bonus"];
   if(action==="refresh") pool=["refreshMood","recovery","save","bonus","expense","waste"];
-  if(action==="rebalance") pool=["subCleanup","cookStart","ledger","sellStuff","savingFatigue","expense"];
+  if(action==="rebalance") pool=["subCleanup","cookStart","ledger","sellStuff","savingFatigue","refreshMood"];
 
   pool=pool.filter(k=>!( ["investUp","investDown","marketFear"].includes(k)&&state.investmentBalance<=0));
   if(state.debt<=0) pool=pool.filter(k=>!["debtPressure","paymentNotice"].includes(k));
 
   const w={}; pool.forEach(k=>w[k]=1);
-  if(state.stress<50){["recovery","save","bonus","review","subCleanup","ledger"].forEach(k=>{if(w[k])w[k]+=0.4;});}
+  if(state.stress<50){["recovery","review","refreshMood","cookStart"].forEach(k=>{if(w[k])w[k]+=0.4;});}
   if(state.stress>=70) pool.forEach(k=>{if(["BAD","WARN"].includes(events[k][0]))w[k]*=1.2;});
+  ["bonus","save","ledger","sideSuccess","overtime"].forEach(k=>{if(w[k])w[k]*=0.7;});
+  ["expense","appliance","ceremony"].forEach(k=>{if(w[k])w[k]*=0.75;});
   if(state.stress>=90){["waste","mental","mistake","sick","mainImpact","deadline"].forEach(k=>{if(w[k])w[k]+=1.2;});}
   if(state.hp<=30){["sick","sleep"].forEach(k=>{if(w[k])w[k]+=1;});}
   if(state.sidejobStreak>=2){["deadline","mainImpact","sleep","sideCancel"].forEach(k=>{if(w[k])w[k]+=1;}); ["review"].forEach(k=>{if(w[k])w[k]*=0.3;});}
@@ -82,12 +92,13 @@ function doAction(action){
   if(state.gameOver||state.cleared) return;
   const rec={month:state.month,action:actionLabels[action]||"不明",income:0,expense:0,investPnL:0,debtRepay:0,event:"なし",eventEffect:"-"};
   const before=net(); if(state.refreshCooldown>0) state.refreshCooldown--;
+  if(state.rebalanceCooldown>0) state.rebalanceCooldown--;
 
   if(action==="work"){state.cash+=state.income; rec.income+=state.income; state.hp-=10; state.stress+=8; state.sidejobStreak=0;}
   if(action==="sidejob"){const base=Math.round(rand(45000,100000)*(state.stress>=85?0.9:1)); state.cash+=state.income+base; rec.income+=state.income+base; state.hp-=(20+(state.sidejobStreak>=3?6:0)); state.stress+=(14+(state.sidejobStreak>=2?6:0)); state.sidejobStreak++;}
   if(action==="rest"){state.cash+=145000; rec.income+=145000; state.hp+=24; state.stress-=25; state.sidejobStreak=0;}
   if(action==="refresh"){if(state.refreshCooldown>0){message.textContent=`リフレッシュはあと${state.refreshCooldown}ヶ月`;render();return;} if(state.cash<80000){message.textContent="現金80,000円未満では使えません。";render();return;} state.cash+=70000; rec.income+=150000; rec.expense+=80000; state.hp+=15; state.stress-=70; state.sidejobStreak=0; state.refreshCooldown=REFRESH_COOLDOWN;}
-  if(action==="rebalance"){if(state.lifePlanLevel>=3){message.textContent="生活見直しは最大レベルです。";render();return;} state.cash+=170000; rec.income+=170000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0;}
+  if(action==="rebalance"){if(state.lifePlanLevel>=3){message.textContent="生活見直しは最大レベルです。";render();return;} if(state.rebalanceCooldown>0){message.textContent=`生活見直しはあと${state.rebalanceCooldown}ヶ月`;render();return;} state.cash+=150000; rec.income+=150000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0; state.rebalanceCooldown=REBALANCE_COOLDOWN;}
   if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; if(investmentType.value==="crypto"&&state.month<=12){message.textContent="仮想通貨は13ヶ月目から";render();return;} if(state.debt>=200000){message.textContent="借金20万円以上では新規投資不可";render();return;} if(state.cash<250000||(state.cash-INVEST_AMOUNT)<livingCost()){message.textContent="投資条件未達（現金25万円＋生活費確保）";} else {state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT;state.investmentType=investmentType.value;state.lastInvestMonth=state.month;rec.expense+=INVEST_AMOUNT;if(state.debt>0)state.stress+=5;}}
   if(action==="borrow"){if(state.debt>=300000){message.textContent="借金30万円以上では追加借入不可";render();return;} state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0;}
 
@@ -102,11 +113,11 @@ function doAction(action){
 
   state.hp=clamp(state.hp,0,100); state.stress=clamp(state.stress,0,100);
   let reason=""; if(state.cash<0)reason="cash"; if(state.hp<=0)reason="hp"; if(state.debt>=500000)reason="debt"; if(reason)state.gameOver=true;
-  if(!state.gameOver&&state.month===MAX_MONTH&&net()>=1000000&&state.debt<200000)state.cleared=true;
+  if(!state.gameOver&&state.month===MAX_MONTH&&net()>=TARGET_NET_WORTH&&state.debt<200000)state.cleared=true;
 
   rec.deltaNet=net()-before; state.logs.unshift(rec); state.lastEvents.unshift(evKey); state.lastEvents=state.lastEvents.slice(0,3); setEventCard(ev); showSummary(rec);
   if(!state.gameOver&&!state.cleared&&state.month<MAX_MONTH)state.month++; else if(!state.gameOver&&!state.cleared&&state.month===MAX_MONTH){state.gameOver=true;reason="time";}
-  message.textContent=state.cleared?"🎉 クリア！純資産100万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
+  message.textContent=state.cleared?"🎉 クリア！純資産150万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
   render();
 }
 
@@ -120,14 +131,14 @@ function render(){
   const items=[["現在月",`${state.month}/${MAX_MONTH}`],["現金",`${state.cash.toLocaleString()}円`],["純資産",`${nw.toLocaleString()}円`],["生活費",`${livingCost().toLocaleString()}円`],["生活見直しLv",state.lifePlanLevel],["投資残高",`${Math.round(state.investmentBalance).toLocaleString()}円`],["借金",`${state.debt.toLocaleString()}円`],["月収",`${state.income.toLocaleString()}円`],["体力",state.hp],["ストレス",state.stress],["副業連続",`${state.sidejobStreak}ヶ月`],["投資タイプ",state.investmentType?investmentDefs[state.investmentType].label:"なし"],["売却可否",canSell()?"可能":"不可"]];
   statusGrid.innerHTML=items.map(([k,v])=>`<div class='status-item ${(k==="体力"&&state.hp<=20)||(k==="借金"&&state.debt>=400000)?"bad":""} ${(k==="ストレス"&&state.stress>=80)||(k==="現金"&&state.cash<livingCost())||(k==="借金"&&state.debt>=200000)?"warn":""}'><strong>${k}</strong>${v}</div>`).join("");
 
-  const chips=[`現在月 ${state.month}/${MAX_MONTH}`,`現金 ${state.cash.toLocaleString()}円`,`純資産 ${nw.toLocaleString()}円`,`体力 ${state.hp}`,`ストレス ${state.stress}`,`借金 ${state.debt.toLocaleString()}円`,`生活費 ${livingCost().toLocaleString()}円`,`生活見直しLv ${state.lifePlanLevel}`,state.refreshCooldown>0?`リフレッシュ不可(${state.refreshCooldown}ヶ月)`:"リフレッシュ可"];
+  const chips=[`現在月 ${state.month}/${MAX_MONTH}`,`現金 ${state.cash.toLocaleString()}円`,`純資産 ${nw.toLocaleString()}円`,`体力 ${state.hp}`,`ストレス ${state.stress}`,`借金 ${state.debt.toLocaleString()}円`,`生活費 ${livingCost().toLocaleString()}円`,`生活見直しLv ${state.lifePlanLevel}`,state.rebalanceCooldown>0?`生活見直し不可(${state.rebalanceCooldown}ヶ月)`:"生活見直し可",state.refreshCooldown>0?`リフレッシュ不可(${state.refreshCooldown}ヶ月)`:"リフレッシュ可"];
   quickStatusBar.innerHTML=chips.map(t=>{let c="quick-pill";if(t.includes("現金")&&state.cash<livingCost())c+=" warn";if(t.includes("体力")&&state.hp<=20)c+=" bad";if(t.includes("ストレス")&&state.stress>=80)c+=" warn";if(t.includes("借金")&&state.debt>=200000)c+=" warn";if(t.includes("不可"))c+=" warn";return `<span class='${c}'>${t}</span>`;}).join("");
-  refreshCooldownEl.textContent=state.refreshCooldown>0?`リフレッシュ再使用まで: ${state.refreshCooldown}ヶ月`:`リフレッシュ使用可能`;
+  refreshCooldownEl.textContent=`リフレッシュ: ${state.refreshCooldown>0?`あと${state.refreshCooldown}ヶ月`:`使用可能`} / 生活見直し: ${state.rebalanceCooldown>0?`あと${state.rebalanceCooldown}ヶ月`:`使用可能`}`;
 
-  wealthFill.style.width=`${clamp(nw/1000000*100,0,100)}%`; milestoneMessage.textContent=nw>=1000000?"目標資産到達圏":nw>=500000?"あと半分":"まずは生活安定";
+  wealthFill.style.width=`${clamp(nw/TARGET_NET_WORTH*100,0,100)}%`; milestoneMessage.textContent=nw>=TARGET_NET_WORTH?"目標資産到達圏":nw>=1000000?"あと50万円で目標":nw>=700000?"土台ができてきた":"まずは生活安定";
   eventLog.innerHTML=state.logs.map(l=>`<li>${l.month}ヶ月目：${l.action} / ${l.event}（${l.eventEffect}）</li>`).join("");
   sellBtn.disabled=!canSell()||state.gameOver||state.cleared;
-  document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&state.lifePlanLevel>=3);});
+  document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&(state.lifePlanLevel>=3||state.rebalanceCooldown>0));});
 }
 
 document.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>doAction(btn.dataset.action)));
