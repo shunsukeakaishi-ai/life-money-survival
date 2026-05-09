@@ -48,7 +48,7 @@ const net=()=>Math.round(state.cash+state.investmentBalance-state.debt);
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
 
-function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","効果：なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産100万円を目指そう。";render();}
+function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産100万円を目指そう。";render();}
 function canSell(){return state.investmentBalance>0&&state.lastInvestMonth!==state.month;}
 
 function pickEvent(action){
