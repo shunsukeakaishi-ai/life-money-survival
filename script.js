@@ -53,6 +53,11 @@ const events = {
   shareholderPerk:["GOOD","株主優待が届いた","ちょっと得した気分。","ストレス -8",s=>{s.stress-=8}],
   cryptoSwingStress:["WARN","乱高下ストレス","値動きが激しく気が休まらない。","ストレス +12",s=>{s.stress+=12}],
   cryptoTempt:["INFO","利確の誘惑","売るべきか迷う。","ストレス +6",s=>{s.stress+=6}],
+  realizeProfit:["GOOD","利益確定できた","冷静に利確して一息ついた。","ストレス -5",s=>{s.stress-=5}],
+  backToCash:["GOOD","現金に戻して安心","相場から距離を置いて気持ちが落ち着いた。","ストレス -8",s=>{s.stress-=8}],
+  soldTooEarly:["WARN","売った直後に値上がり","早売りだったかもと後悔した。","ストレス +8",s=>{s.stress+=8}],
+  sellFeePain:["WARN","手数料が思ったより痛い","想定よりコストを重く感じた。","現金 -3,000",s=>{s.cash-=3000}],
+  sellHesitation:["INFO","売却判断に迷った","本当に正解か自信が持てない。","ストレス +5",s=>{s.stress+=5}],
 
 };
 
@@ -79,6 +84,7 @@ function pickEvent(action){
   if(action==="borrow") pool=["debtPressure","paymentNotice","expense","bonus"];
   if(action==="refresh") pool=["refreshMood","recovery","save","bonus","expense","waste"];
   if(action==="rebalance") pool=["subCleanup","cookStart","ledger","sellStuff","savingFatigue","refreshMood"];
+  if(action==="sell") pool=["realizeProfit","backToCash","soldTooEarly","sellFeePain","sellHesitation"];
 
   pool=pool.filter(k=>!( ["investUp","investDown","marketFear"].includes(k)&&state.investmentBalance<=0));
   if(state.debt<=0) pool=pool.filter(k=>!["debtPressure","paymentNotice"].includes(k));
@@ -113,6 +119,22 @@ function doAction(action){
   if(action==="rebalance"){if(state.lifePlanLevel>=3){state.rebalanceCooldown=0;message.textContent="生活見直しは最大レベルです。";render();return;} if(state.rebalanceCooldown>0){message.textContent=`生活見直しはあと${state.rebalanceCooldown}ヶ月`;render();return;} state.cash+=150000; rec.income+=150000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0; state.investmentStreak=0; state.rebalanceCooldown=state.lifePlanLevel>=3?0:REBALANCE_COOLDOWN;}
   if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; const selectedType=investmentType.value; if(selectedType==="crypto"&&state.month<=12){message.textContent="仮想通貨は13ヶ月目から";render();return;} if(state.debt>=200000){message.textContent="借金20万円以上では新規投資不可";render();return;} if(state.investmentBalance>0 && state.investmentType && selectedType!==state.investmentType){message.textContent=`現在は${investmentDefs[state.investmentType].label}を保有中です。別の投資先に変えるには先に全額売却してください。`; render(); return;} if(state.cash<250000||(state.cash-INVEST_AMOUNT)<livingCost()){message.textContent="投資条件未達（現金25万円＋生活費確保）";} else {state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT; if(!state.investmentType) state.investmentType=selectedType; state.lastInvestMonth=state.month; rec.expense+=INVEST_AMOUNT; state.investmentStreak += 1; if(state.debt>0)state.stress+=5;}}
   if(action==="borrow"){if(state.debt>=300000){message.textContent="借金30万円以上では追加借入不可";render();return;} state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0; state.investmentStreak=0;}
+  if(action==="sell"){
+    if(!canSell()){message.textContent="売却は購入翌月以降";render();return;}
+    const d=investmentDefs[state.investmentType];
+    const fee=Math.round(state.investmentBalance*d.fee);
+    const received=state.investmentBalance-fee;
+    state.cash+=received;
+    rec.income+=received;
+    rec.expense+=fee;
+    rec.event=`${d.label}を全額売却`;
+    rec.eventEffect=`手数料 ${fee.toLocaleString()}円`;
+    state.investmentBalance=0;
+    state.investmentType=null;
+    state.lastInvestMonth=null;
+    state.sidejobStreak=0;
+    state.investmentStreak=0;
+  }
 
   const evKey=pickEvent(action); const ev=events[evKey]; const beforeInv=state.investmentBalance; ev[4](state); rec.event=ev[1]; rec.eventEffect=ev[3];
 
@@ -155,6 +177,6 @@ function render(){
 }
 
 document.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>doAction(btn.dataset.action)));
-sellBtn.addEventListener("click",()=>{if(!canSell()){message.textContent="売却は購入翌月以降";return;}const d=investmentDefs[state.investmentType],f=Math.round(state.investmentBalance*d.fee),r=state.investmentBalance-f;state.cash+=r;state.logs.unshift({month:state.month,action:actionLabels.sell,income:r,expense:f,investPnL:0,debtRepay:0,event:`${d.label}売却`,eventEffect:`手数料 ${f.toLocaleString()}円`,deltaNet:r-f});state.investmentBalance=0;state.investmentType=null;state.lastInvestMonth=null;state.investmentStreak=0;render();});
+sellBtn.addEventListener("click",()=>doAction("sell"));
 restartBtn.addEventListener("click",resetGame);
 resetGame();
