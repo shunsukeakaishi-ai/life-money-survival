@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>人生資産サバイバル（Phase 2）</title>
+  <title>人生資産サバイバル（Phase 2.1）</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -16,12 +16,13 @@
 
     <section class="panel event-focus-panel">
       <h2>最新イベント / 今月の出来事</h2>
-      <article id="eventCard" class="event-card info">
-        <div class="event-badge">INFO</div>
-        <h3>ゲーム開始</h3>
-        <p>最初の一歩。まずは今月の行動を選んでみよう。</p>
-        <p class="event-effect">効果：なし</p>
-      </article>
+      <article id="eventCard" class="event-card info"></article>
+    </section>
+
+    <section class="panel quick-status-panel">
+      <h2>今月の判断用ステータス</h2>
+      <div id="quickStatusBar" class="quick-status"></div>
+      <div id="refreshCooldown" class="cooldown-note"></div>
     </section>
 
     <section class="panel action-panel">
@@ -40,6 +41,7 @@
         <button data-action="rest">休養する</button>
         <button data-action="invest">投資を増やす</button>
         <button data-action="borrow">借金する</button>
+        <button data-action="refresh">思い切ってリフレッシュ</button>
       </div>
       <div class="secondary-buttons">
         <button id="sellBtn">売却する（全額）</button>
@@ -54,7 +56,7 @@
     </section>
 
     <section class="panel status-panel">
-      <h2>ステータス</h2>
+      <h2>詳細ステータス</h2>
       <div id="statusGrid" class="status-grid"></div>
       <div class="wealth-meter-wrap">
         <strong>資産メーター（目標100万円）</strong>
