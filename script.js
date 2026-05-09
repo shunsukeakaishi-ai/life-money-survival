@@ -108,6 +108,19 @@ function pickEvent(action){
 
 function doAction(action){
   if(state.gameOver||state.cleared) return;
+  if(action==="refresh"&&state.refreshCooldown>0){message.textContent=`リフレッシュはあと${state.refreshCooldown}ヶ月`;render();return;}
+  if(action==="refresh"&&state.cash<80000){message.textContent="現金80,000円未満では使えません。";render();return;}
+  if(action==="rebalance"&&state.lifePlanLevel>=3){message.textContent="生活見直しは最大レベルです。";render();return;}
+  if(action==="rebalance"&&state.rebalanceCooldown>0){message.textContent=`生活見直しはあと${state.rebalanceCooldown}ヶ月`;render();return;}
+  if(action==="borrow"&&state.debt>=300000){message.textContent="借金30万円以上では追加借入不可";render();return;}
+  if(action==="sell"&&!canSell()){message.textContent="売却は購入翌月以降";render();return;}
+  if(action==="invest"){
+    const selectedType=investmentType.value;
+    if(selectedType==="crypto"&&state.month<=12){message.textContent="仮想通貨は13ヶ月目から";render();return;}
+    if(state.debt>=200000){message.textContent="借金20万円以上では新規投資不可";render();return;}
+    if(state.investmentBalance>0 && state.investmentType && selectedType!==state.investmentType){message.textContent=`現在は${investmentDefs[state.investmentType].label}を保有中です。別の投資先に変えるには先に全額売却してください。`;render();return;}
+    if(state.cash<250000||(state.cash-INVEST_AMOUNT)<livingCost()){message.textContent="投資条件未達（現金25万円＋生活費確保）";render();return;}
+  }
   const rec={month:state.month,action:actionLabels[action]||"不明",income:0,expense:0,investPnL:0,debtRepay:0,event:"なし",eventEffect:"-"};
   const before=net(); if(state.refreshCooldown>0) state.refreshCooldown--;
   if(state.rebalanceCooldown>0) state.rebalanceCooldown--;
@@ -115,12 +128,11 @@ function doAction(action){
   if(action==="work"){state.cash+=state.income; rec.income+=state.income; state.hp-=10; state.stress+=8; state.sidejobStreak=0; state.investmentStreak=0;}
   if(action==="sidejob"){const base=Math.round(rand(45000,100000)*(state.stress>=85?0.9:1)); state.cash+=state.income+base; rec.income+=state.income+base; state.hp-=(20+(state.sidejobStreak>=3?6:0)); state.stress+=(14+(state.sidejobStreak>=2?6:0)); state.sidejobStreak++; state.investmentStreak=0;}
   if(action==="rest"){state.cash+=145000; rec.income+=145000; state.hp+=24; state.stress-=25; state.sidejobStreak=0; state.investmentStreak=0;}
-  if(action==="refresh"){if(state.refreshCooldown>0){message.textContent=`リフレッシュはあと${state.refreshCooldown}ヶ月`;render();return;} if(state.cash<80000){message.textContent="現金80,000円未満では使えません。";render();return;} state.cash+=70000; rec.income+=150000; rec.expense+=80000; state.hp+=15; state.stress-=70; state.sidejobStreak=0; state.investmentStreak=0; state.refreshCooldown=REFRESH_COOLDOWN;}
-  if(action==="rebalance"){if(state.lifePlanLevel>=3){state.rebalanceCooldown=0;message.textContent="生活見直しは最大レベルです。";render();return;} if(state.rebalanceCooldown>0){message.textContent=`生活見直しはあと${state.rebalanceCooldown}ヶ月`;render();return;} state.cash+=150000; rec.income+=150000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0; state.investmentStreak=0; state.rebalanceCooldown=state.lifePlanLevel>=3?0:REBALANCE_COOLDOWN;}
-  if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; const selectedType=investmentType.value; if(selectedType==="crypto"&&state.month<=12){message.textContent="仮想通貨は13ヶ月目から";render();return;} if(state.debt>=200000){message.textContent="借金20万円以上では新規投資不可";render();return;} if(state.investmentBalance>0 && state.investmentType && selectedType!==state.investmentType){message.textContent=`現在は${investmentDefs[state.investmentType].label}を保有中です。別の投資先に変えるには先に全額売却してください。`; render(); return;} if(state.cash<250000||(state.cash-INVEST_AMOUNT)<livingCost()){message.textContent="投資条件未達（現金25万円＋生活費確保）";} else {state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT; if(!state.investmentType) state.investmentType=selectedType; state.lastInvestMonth=state.month; rec.expense+=INVEST_AMOUNT; state.investmentStreak += 1; if(state.debt>0)state.stress+=5;}}
-  if(action==="borrow"){if(state.debt>=300000){message.textContent="借金30万円以上では追加借入不可";render();return;} state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0; state.investmentStreak=0;}
+  if(action==="refresh"){state.cash+=70000; rec.income+=150000; rec.expense+=80000; state.hp+=15; state.stress-=70; state.sidejobStreak=0; state.investmentStreak=0; state.refreshCooldown=REFRESH_COOLDOWN;}
+  if(action==="rebalance"){state.cash+=150000; rec.income+=150000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0; state.investmentStreak=0; state.rebalanceCooldown=state.lifePlanLevel>=3?0:REBALANCE_COOLDOWN;}
+  if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; const selectedType=investmentType.value; state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT; if(!state.investmentType) state.investmentType=selectedType; state.lastInvestMonth=state.month; rec.expense+=INVEST_AMOUNT; state.investmentStreak += 1; if(state.debt>0)state.stress+=5;}
+  if(action==="borrow"){state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0; state.investmentStreak=0;}
   if(action==="sell"){
-    if(!canSell()){message.textContent="売却は購入翌月以降";render();return;}
     const d=investmentDefs[state.investmentType];
     const fee=Math.round(state.investmentBalance*d.fee);
     const received=state.investmentBalance-fee;
