@@ -58,6 +58,11 @@ const events = {
   soldTooEarly:["WARN","売った直後に値上がり","早売りだったかもと後悔した。","ストレス +8",s=>{s.stress+=8}],
   sellFeePain:["WARN","手数料が思ったより痛い","想定よりコストを重く感じた。","現金 -3,000",s=>{s.cash-=3000}],
   sellHesitation:["INFO","売却判断に迷った","本当に正解か自信が持てない。","ストレス +5",s=>{s.stress+=5}],
+  noFun:["WARN","娯楽を我慢している","ずっと我慢続きで気が張っている。","ストレス +8",s=>{s.stress+=8}],
+  declineInvite:["WARN","友人の誘いを断った","人付き合いを後回しにした。","ストレス +6",s=>{s.stress+=6}],
+  noMargin:["WARN","生活に余白がない","節約と相場チェックで疲れた。","ストレス +7 / 体力 -3",s=>{s.stress+=7;s.hp-=3}],
+  marketDistract:["WARN","相場が気になって集中できない","価格チェックが止まらない。","ストレス +8",s=>{s.stress+=8}],
+  overInvested:["WARN","投資額を増やしすぎたかも","少し不安がよぎる。","ストレス +6",s=>{s.stress+=6}],
 
 };
 
@@ -69,7 +74,7 @@ const net=()=>Math.round(state.cash+state.investmentBalance-state.debt);
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
 
-function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,investmentStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産150万円を目指そう。";render();}
+function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,sidejobFatigue:0,mainJobScore:2,investmentStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産150万円を目指そう。";render();}
 function canSell(){return state.investmentBalance>0&&state.lastInvestMonth!==state.month;}
 
 function pickEvent(action){
@@ -77,7 +82,7 @@ function pickEvent(action){
   if(action==="work") pool=["overtime","review","mistake","catPark","doomscroll","save","expense"];
   if(action==="sidejob") pool=["sideSuccess","deadline","sideCancel","mainImpact","sleep","waste"];
   if(action==="rest") pool=["recovery","refreshMood","catPark","bath","friendTalk","save","waste","lateNight"];
-  if(action==="invest") pool=["investUp","investDown","marketFear","bonus","expense"];
+  if(action==="invest") pool=["investUp","investDown","marketFear","bonus","expense","noFun","declineInvite","noMargin","marketDistract","overInvested"];
   if(action==="invest"&&state.investmentType==="fund") pool.push("fundRoutine","fundTight");
   if(action==="invest"&&state.investmentType==="stock") pool.push("earningsBeat","scandal","dividend","shareholderPerk");
   if(action==="invest"&&state.investmentType==="crypto") pool.push("cryptoSwingStress","cryptoTempt");
@@ -97,8 +102,18 @@ function pickEvent(action){
   if(state.stress>=90){["waste","mental","mistake","sick","mainImpact","deadline"].forEach(k=>{if(w[k])w[k]+=1.2;});}
   if(state.hp<=30){["sick","sleep"].forEach(k=>{if(w[k])w[k]+=1;});}
   if(state.sidejobStreak>=2){["deadline","mainImpact","sleep","sideCancel"].forEach(k=>{if(w[k])w[k]+=1;}); ["review"].forEach(k=>{if(w[k])w[k]*=0.3;});}
+  if(state.sidejobFatigue>=4){["deadline","mainImpact","sleep","sideCancel"].forEach(k=>{if(w[k])w[k]+=0.8;});}
+  if(state.sidejobFatigue>=7){["deadline","mainImpact","sleep","sideCancel"].forEach(k=>{if(w[k])w[k]+=1.2;}); ["sideSuccess"].forEach(k=>{if(w[k])w[k]*=0.6;});}
+  if(state.mainJobScore>=4){["review"].forEach(k=>{if(w[k])w[k]+=0.8;});}
+  if(state.mainJobScore<=1){["mistake","mainImpact"].forEach(k=>{if(w[k])w[k]+=0.7;});}
   if(state.investmentType==="crypto"){["marketFear","investDown","cryptoSwingStress"].forEach(k=>{if(w[k])w[k]+=1;});}
   if(state.investmentStreak>=2){["fundTight","cryptoSwingStress","deadline","mental"].forEach(k=>{if(w[k])w[k]+=0.8;});}
+  if(state.investmentStreak>=3){["noFun","declineInvite","noMargin","savingFatigue","marketDistract","overInvested"].forEach(k=>{if(w[k])w[k]+=1;});}
+  if(state.investmentStreak>=5){["noFun","declineInvite","noMargin","savingFatigue","marketDistract","overInvested"].forEach(k=>{if(w[k])w[k]+=1.3;});}
+  if(state.lifePlanLevel>=2&&state.investmentStreak>=3){["noFun","declineInvite","noMargin","savingFatigue"].forEach(k=>{if(w[k])w[k]+=0.8;});}
+  if(action==="invest"&&state.investmentType==="fund"){["noFun","declineInvite","noMargin","overInvested"].forEach(k=>{if(w[k])w[k]+=0.4;});}
+  if(action==="invest"&&state.investmentType==="stock"){["noFun","declineInvite","noMargin","marketDistract","overInvested"].forEach(k=>{if(w[k])w[k]+=0.8;});}
+  if(action==="invest"&&state.investmentType==="crypto"){["noFun","declineInvite","noMargin","marketDistract","overInvested","cryptoSwingStress"].forEach(k=>{if(w[k])w[k]+=1.2;});}
   state.lastEvents.forEach(k=>{if(w[k])w[k]*=0.2;});
 
   let sum=0; pool.forEach(k=>sum+=w[k]); let r=Math.random()*sum;
@@ -125,13 +140,13 @@ function doAction(action){
   const before=net(); if(state.refreshCooldown>0) state.refreshCooldown--;
   if(state.rebalanceCooldown>0) state.rebalanceCooldown--;
 
-  if(action==="work"){state.cash+=state.income; rec.income+=state.income; state.hp-=10; state.stress+=8; state.sidejobStreak=0; state.investmentStreak=0;}
-  if(action==="sidejob"){const base=Math.round(rand(45000,100000)*(state.stress>=85?0.9:1)); state.cash+=state.income+base; rec.income+=state.income+base; state.hp-=(20+(state.sidejobStreak>=3?6:0)); state.stress+=(14+(state.sidejobStreak>=2?6:0)); state.sidejobStreak++; state.investmentStreak=0;}
-  if(action==="rest"){state.cash+=145000; rec.income+=145000; state.hp+=24; state.stress-=25; state.sidejobStreak=0; state.investmentStreak=0;}
-  if(action==="refresh"){state.cash+=70000; rec.income+=150000; rec.expense+=80000; state.hp+=15; state.stress-=70; state.sidejobStreak=0; state.investmentStreak=0; state.refreshCooldown=REFRESH_COOLDOWN;}
-  if(action==="rebalance"){state.cash+=150000; rec.income+=150000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0; state.investmentStreak=0; state.rebalanceCooldown=state.lifePlanLevel>=3?0:REBALANCE_COOLDOWN;}
-  if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; const selectedType=investmentType.value; state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT; if(!state.investmentType) state.investmentType=selectedType; state.lastInvestMonth=state.month; rec.expense+=INVEST_AMOUNT; state.investmentStreak += 1; if(state.debt>0)state.stress+=5;}
-  if(action==="borrow"){state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0; state.investmentStreak=0;}
+  if(action==="work"){state.cash+=state.income; rec.income+=state.income; state.hp-=10; state.stress+=8; state.sidejobStreak=0; state.investmentStreak=0; state.sidejobFatigue-=1; state.mainJobScore+=1;}
+  if(action==="sidejob"){let rate=(state.stress>=85?0.9:1); if(state.sidejobFatigue>=7)rate*=0.6; else if(state.sidejobFatigue>=4)rate*=0.8; const base=Math.round(rand(45000,100000)*rate); state.cash+=state.income+base; rec.income+=state.income+base; state.hp-=(20+(state.sidejobStreak>=3?6:0)); state.stress+=(14+(state.sidejobStreak>=2?6:0)); state.sidejobStreak++; state.investmentStreak=0; state.sidejobFatigue += state.sidejobFatigue>=6?3:2; if(state.sidejobFatigue>=7) state.mainJobScore-=1;}
+  if(action==="rest"){state.cash+=145000; rec.income+=145000; state.hp+=24; state.stress-=25; state.sidejobStreak=0; state.investmentStreak=0; state.sidejobFatigue-=2;}
+  if(action==="refresh"){state.cash+=70000; rec.income+=150000; rec.expense+=80000; state.hp+=15; state.stress-=70; state.sidejobStreak=0; state.investmentStreak=0; state.refreshCooldown=REFRESH_COOLDOWN; state.sidejobFatigue-=4;}
+  if(action==="rebalance"){state.cash+=150000; rec.income+=150000; state.hp-=5; state.stress+=3; state.lifePlanLevel+=1; state.sidejobStreak=0; state.investmentStreak=0; state.rebalanceCooldown=state.lifePlanLevel>=3?0:REBALANCE_COOLDOWN; state.sidejobFatigue-=1;}
+  if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; const selectedType=investmentType.value; state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT; if(!state.investmentType) state.investmentType=selectedType; state.lastInvestMonth=state.month; rec.expense+=INVEST_AMOUNT; state.investmentStreak += 1; if(state.debt>0)state.stress+=5; state.sidejobFatigue-=1;}
+  if(action==="borrow"){state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0; state.investmentStreak=0; state.sidejobFatigue-=1;}
   if(action==="sell"){
     state.cash+=state.income;
     rec.income+=state.income;
@@ -151,6 +166,7 @@ function doAction(action){
     state.lastInvestMonth=null;
     state.sidejobStreak=0;
     state.investmentStreak=0;
+    state.sidejobFatigue-=1;
   }
 
   const evKey=pickEvent(action); const ev=events[evKey]; const beforeInv=state.investmentBalance; ev[4](state); rec.event=ev[1]; rec.eventEffect=ev[3];
@@ -160,9 +176,9 @@ function doAction(action){
   state.cash-=livingCost(); rec.expense+=livingCost();
   if(state.debt>0){if(state.debt>=200000)state.stress+=3; let repay=state.debt<10000?state.debt:Math.max(10000,Math.floor(state.debt*0.1)); if(state.cash>=repay){state.cash-=repay;state.debt-=repay;rec.debtRepay=repay;rec.expense+=repay;} else {state.stress+=18;state.debt+=20000;rec.event+=" / 延滞";} state.debt=Math.round(state.debt*1.03);}
 
-  if(state.month===12||state.month===24){const badCount=[state.stress>=80,state.hp<=20,state.debt>=400000].filter(Boolean).length;const raise=(badCount===0||(state.goodWorkFlag&&badCount<=1))&&state.sidejobStreak<3;if(raise){state.income+=10000;rec.event+=" / 昇給+10,000";}else rec.event+=" / 昇給なし";state.goodWorkFlag=false;}
+  if(state.month===12||state.month===24){const badCount=[state.stress>=80,state.hp<=20,state.debt>=400000].filter(Boolean).length;const raise=(badCount===0||(state.goodWorkFlag&&badCount<=1)||state.mainJobScore>=4)&&state.sidejobStreak<3&&state.mainJobScore>=2;if(raise){state.income+=10000;rec.event+=" / 昇給+10,000";}else rec.event+=" / 昇給なし";state.goodWorkFlag=false;}
 
-  state.hp=clamp(state.hp,0,100); state.stress=clamp(state.stress,0,100);
+  state.hp=clamp(state.hp,0,100); state.stress=clamp(state.stress,0,100); state.sidejobFatigue=clamp(state.sidejobFatigue,0,10); state.mainJobScore=clamp(state.mainJobScore,0,6);
   let reason=""; if(state.cash<0)reason="cash"; if(state.hp<=0)reason="hp"; if(state.debt>=500000)reason="debt"; if(reason)state.gameOver=true;
   if(!state.gameOver&&state.month===MAX_MONTH&&net()>=TARGET_NET_WORTH&&state.debt<200000)state.cleared=true;
 
@@ -183,12 +199,12 @@ function showSummary(r){
 function render(){
   investmentType.querySelector("option[value='crypto']").disabled=state.month<=12;
   const nw=net();
-  const items=[["現在月",`${state.month}/${MAX_MONTH}`],["現金",`${state.cash.toLocaleString()}円`],["純資産",`${nw.toLocaleString()}円`],["生活費",`${livingCost().toLocaleString()}円`],["生活見直しLv",state.lifePlanLevel],["投資残高",`${Math.round(state.investmentBalance).toLocaleString()}円`],["借金",`${state.debt.toLocaleString()}円`],["月収",`${state.income.toLocaleString()}円`],["体力",state.hp],["ストレス",state.stress],["副業連続",`${state.sidejobStreak}ヶ月`],["投資連続",`${state.investmentStreak}ヶ月`],["投資タイプ",state.investmentType?investmentDefs[state.investmentType].label:"なし"],["売却可否",canSell()?"可能":"不可"]];
+  const items=[["現在月",`${state.month}/${MAX_MONTH}`],["現金",`${state.cash.toLocaleString()}円`],["純資産",`${nw.toLocaleString()}円`],["生活費",`${livingCost().toLocaleString()}円`],["生活見直しLv",state.lifePlanLevel],["投資残高",`${Math.round(state.investmentBalance).toLocaleString()}円`],["借金",`${state.debt.toLocaleString()}円`],["月収",`${state.income.toLocaleString()}円`],["体力",state.hp],["ストレス",state.stress],["副業疲労",state.sidejobFatigue],["本業評価",state.mainJobScore],["副業連続",`${state.sidejobStreak}ヶ月`],["投資連続",`${state.investmentStreak}ヶ月`],["投資タイプ",state.investmentType?investmentDefs[state.investmentType].label:"なし"],["売却可否",canSell()?"可能":"不可"]];
   statusGrid.innerHTML=items.map(([k,v])=>`<div class='status-item ${(k==="体力"&&state.hp<=20)||(k==="借金"&&state.debt>=400000)?"bad":""} ${(k==="ストレス"&&state.stress>=80)||(k==="現金"&&state.cash<livingCost())||(k==="借金"&&state.debt>=200000)?"warn":""}'><strong>${k}</strong>${v}</div>`).join("");
 
   const rebalanceStatus = state.lifePlanLevel>=3 ? "生活見直し: 最大Lv" : state.rebalanceCooldown>0 ? `生活見直し不可(${state.rebalanceCooldown}ヶ月)` : "生活見直し可";
-  const chips=[`現在月 ${state.month}/${MAX_MONTH}`,`現金 ${state.cash.toLocaleString()}円`,`純資産 ${nw.toLocaleString()}円`,`体力 ${state.hp}`,`ストレス ${state.stress}`,`借金 ${state.debt.toLocaleString()}円`,`生活費 ${livingCost().toLocaleString()}円`,`生活見直しLv ${state.lifePlanLevel}`,`投資連続 ${state.investmentStreak}ヶ月`,rebalanceStatus,state.refreshCooldown>0?`リフレッシュ不可(${state.refreshCooldown}ヶ月)`:"リフレッシュ可"];
-  quickStatusBar.innerHTML=chips.map(t=>{let c="quick-pill";if(t.includes("現金")&&state.cash<livingCost())c+=" warn";if(t.includes("体力")&&state.hp<=20)c+=" bad";if(t.includes("ストレス")&&state.stress>=80)c+=" warn";if(t.includes("借金")&&state.debt>=200000)c+=" warn";if(t.includes("不可"))c+=" warn";return `<span class='${c}'>${t}</span>`;}).join("");
+  const chips=[`現在月 ${state.month}/${MAX_MONTH}`,`現金 ${state.cash.toLocaleString()}円`,`純資産 ${nw.toLocaleString()}円`,`体力 ${state.hp}`,`ストレス ${state.stress}`,`副業疲労 ${state.sidejobFatigue}`,`本業評価 ${state.mainJobScore}`,`借金 ${state.debt.toLocaleString()}円`,`生活費 ${livingCost().toLocaleString()}円`,`生活見直しLv ${state.lifePlanLevel}`,`投資連続 ${state.investmentStreak}ヶ月`,rebalanceStatus,state.refreshCooldown>0?`リフレッシュ不可(${state.refreshCooldown}ヶ月)`:"リフレッシュ可"];
+  quickStatusBar.innerHTML=chips.map(t=>{let c="quick-pill";if(t.includes("現金")&&state.cash<livingCost())c+=" warn";if(t.includes("体力")&&state.hp<=20)c+=" bad";if(t.includes("ストレス")&&state.stress>=80)c+=" warn";if(t.includes("副業疲労")&&state.sidejobFatigue>=7)c+=" bad";if(t.includes("本業評価")&&state.mainJobScore<=1)c+=" warn";if(t.includes("借金")&&state.debt>=200000)c+=" warn";if(t.includes("不可"))c+=" warn";return `<span class='${c}'>${t}</span>`;}).join("");
   refreshCooldownEl.textContent=`リフレッシュ: ${state.refreshCooldown>0?`あと${state.refreshCooldown}ヶ月`:`使用可能`} / 生活見直し: ${state.lifePlanLevel>=3?`最大Lv`:state.rebalanceCooldown>0?`あと${state.rebalanceCooldown}ヶ月`:`使用可能`}`;
 
   wealthFill.style.width=`${clamp(nw/TARGET_NET_WORTH*100,0,100)}%`; milestoneMessage.textContent=nw>=TARGET_NET_WORTH?"目標資産到達圏":nw>=1000000?"あと50万円で目標":nw>=700000?"土台ができてきた":"まずは生活安定";
