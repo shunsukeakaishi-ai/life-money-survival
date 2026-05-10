@@ -3,7 +3,7 @@ const BASE_LIVING_COST = 170000;
 const INVEST_AMOUNT = 50000;
 const REFRESH_COOLDOWN = 4;
 const REBALANCE_COOLDOWN = 6;
-const TARGET_NET_WORTH = 1500000;
+const TARGET_NET_WORTH = 2000000;
 const LIFE_PLAN_COST = [170000, 160000, 155000, 150000];
 
 const actionLabels = {
@@ -74,7 +74,7 @@ const net=()=>Math.round(state.cash+state.investmentBalance-state.debt);
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
 
-function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,sidejobFatigue:0,mainJobScore:2,investmentStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産150万円を目指そう。";render();}
+function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,logs:[],goodWorkFlag:false,sidejobStreak:0,sidejobFatigue:0,mainJobScore:2,investmentStreak:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産200万円を目指そう。";render();}
 function canSell(){return state.investmentBalance>0&&state.lastInvestMonth!==state.month;}
 
 function pickEvent(action){
@@ -184,7 +184,7 @@ function doAction(action){
 
   rec.deltaNet=net()-before; state.logs.unshift(rec); state.lastEvents.unshift(evKey); state.lastEvents=state.lastEvents.slice(0,3); setEventCard(ev); showSummary(rec);
   if(!state.gameOver&&!state.cleared&&state.month<MAX_MONTH)state.month++; else if(!state.gameOver&&!state.cleared&&state.month===MAX_MONTH){state.gameOver=true;reason="time";}
-  message.textContent=state.cleared?"🎉 クリア！純資産150万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
+  message.textContent=state.cleared?"🎉 クリア！純資産200万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
   render();
 }
 
@@ -207,7 +207,7 @@ function render(){
   quickStatusBar.innerHTML=chips.map(t=>{let c="quick-pill";if(t.includes("現金")&&state.cash<livingCost())c+=" warn";if(t.includes("体力")&&state.hp<=20)c+=" bad";if(t.includes("ストレス")&&state.stress>=80)c+=" warn";if(t.includes("副業疲労")&&state.sidejobFatigue>=7)c+=" bad";if(t.includes("本業評価")&&state.mainJobScore<=1)c+=" warn";if(t.includes("借金")&&state.debt>=200000)c+=" warn";if(t.includes("不可"))c+=" warn";return `<span class='${c}'>${t}</span>`;}).join("");
   refreshCooldownEl.textContent=`リフレッシュ: ${state.refreshCooldown>0?`あと${state.refreshCooldown}ヶ月`:`使用可能`} / 生活見直し: ${state.lifePlanLevel>=3?`最大Lv`:state.rebalanceCooldown>0?`あと${state.rebalanceCooldown}ヶ月`:`使用可能`}`;
 
-  wealthFill.style.width=`${clamp(nw/TARGET_NET_WORTH*100,0,100)}%`; milestoneMessage.textContent=nw>=TARGET_NET_WORTH?"目標資産到達圏":nw>=1000000?"あと50万円で目標":nw>=700000?"土台ができてきた":"まずは生活安定";
+  wealthFill.style.width=`${clamp(nw/TARGET_NET_WORTH*100,0,100)}%`; milestoneMessage.textContent=nw>=TARGET_NET_WORTH?"目標資産到達圏":nw>=1500000?"あと50万円で目標":nw>=1000000?"1,000,000円突破。もう一段伸ばそう":"まずは生活安定";
   eventLog.innerHTML=state.logs.map(l=>`<li>${l.month}ヶ月目：${l.action} / ${l.event}（${l.eventEffect}）</li>`).join("");
   sellBtn.disabled=!canSell()||state.gameOver||state.cleared;
   document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&(state.lifePlanLevel>=3||state.rebalanceCooldown>0));});
