@@ -121,7 +121,7 @@ function doAction(action){
     if(state.investmentBalance>0 && state.investmentType && selectedType!==state.investmentType){message.textContent=`現在は${investmentDefs[state.investmentType].label}を保有中です。別の投資先に変えるには先に全額売却してください。`;render();return;}
     if(state.cash<250000||(state.cash-INVEST_AMOUNT)<livingCost()){message.textContent="投資条件未達（現金25万円＋生活費確保）";render();return;}
   }
-  const rec={month:state.month,action:actionLabels[action]||"不明",income:0,expense:0,investPnL:0,debtRepay:0,event:"なし",eventEffect:"-"};
+  const rec={month:state.month,action:actionLabels[action]||"不明",income:0,expense:0,investPnL:0,debtRepay:0,event:"なし",eventEffect:"-",salaryIncome:0,sellIncome:0,sellFee:0};
   const before=net(); if(state.refreshCooldown>0) state.refreshCooldown--;
   if(state.rebalanceCooldown>0) state.rebalanceCooldown--;
 
@@ -133,12 +133,17 @@ function doAction(action){
   if(action==="invest"){state.cash+=state.income; rec.income+=state.income; state.sidejobStreak=0; const selectedType=investmentType.value; state.cash-=INVEST_AMOUNT;state.investmentBalance+=INVEST_AMOUNT; if(!state.investmentType) state.investmentType=selectedType; state.lastInvestMonth=state.month; rec.expense+=INVEST_AMOUNT; state.investmentStreak += 1; if(state.debt>0)state.stress+=5;}
   if(action==="borrow"){state.cash+=state.income+100000; rec.income+=state.income+100000; state.debt+=100000; state.sidejobStreak=0; state.investmentStreak=0;}
   if(action==="sell"){
+    state.cash+=state.income;
+    rec.income+=state.income;
+    rec.salaryIncome=state.income;
     const d=investmentDefs[state.investmentType];
     const fee=Math.round(state.investmentBalance*d.fee);
     const received=state.investmentBalance-fee;
     state.cash+=received;
     rec.income+=received;
     rec.expense+=fee;
+    rec.sellIncome=received;
+    rec.sellFee=fee;
     rec.event=`${d.label}を全額売却`;
     rec.eventEffect=`手数料 ${fee.toLocaleString()}円`;
     state.investmentBalance=0;
@@ -169,7 +174,11 @@ function doAction(action){
 
 function gameOverMessage(r){if(r==="cash")return"現金不足で生活が崩壊した。";if(r==="hp")return"体力が尽きて行動不能。";if(r==="debt")return"借金が膨張し身動き不能。";return"36ヶ月終了。目標条件を満たせなかった。";}
 function setEventCard(ev){eventCard.className=`event-card ${ev[0].toLowerCase()}`;eventCard.innerHTML=`<div class='event-badge'>${ev[0]}</div><h3>${ev[1]}</h3><p>${ev[2]}</p><p class='event-effect'>効果：${ev[3]}</p>`;}
-function showSummary(r){const b=state.cleared?"<div class='result-banner clear'>🎉 クリア達成</div>":state.gameOver?"<div class='result-banner over'>GAME OVER</div>":"";summary.innerHTML=`${b}<ul><li>今月の行動：${r.action}</li><li>収入：${r.income.toLocaleString()}円</li><li>支出：${r.expense.toLocaleString()}円</li><li>投資損益：${r.investPnL.toLocaleString()}円</li><li>借金返済額：${r.debtRepay.toLocaleString()}円</li><li>発生イベント：${r.event}</li><li>イベント効果：${r.eventEffect}</li><li>純資産増減：${r.deltaNet.toLocaleString()}円</li></ul>`;}
+function showSummary(r){
+  const b=state.cleared?"<div class='result-banner clear'>🎉 クリア達成</div>":state.gameOver?"<div class='result-banner over'>GAME OVER</div>":"";
+  const sellDetails=r.action===actionLabels.sell?`<li>本業収入：${r.salaryIncome.toLocaleString()}円</li><li>売却入金：${r.sellIncome.toLocaleString()}円</li><li>売却手数料：${r.sellFee.toLocaleString()}円</li><li>生活費：${livingCost().toLocaleString()}円</li>`:"";
+  summary.innerHTML=`${b}<ul><li>今月の行動：${r.action}</li><li>収入：${r.income.toLocaleString()}円</li><li>支出：${r.expense.toLocaleString()}円</li>${sellDetails}<li>投資損益：${r.investPnL.toLocaleString()}円</li><li>借金返済額：${r.debtRepay.toLocaleString()}円</li><li>発生イベント：${r.event}</li><li>イベント効果：${r.eventEffect}</li><li>純資産増減：${r.deltaNet.toLocaleString()}円</li></ul>`;
+}
 
 function render(){
   investmentType.querySelector("option[value='crypto']").disabled=state.month<=12;
