@@ -69,7 +69,10 @@ const events = {
 
 const $ = id => document.getElementById(id);
 const statusGrid=$("statusGrid"),message=$("message"),summary=$("monthlySummary"),eventLog=$("eventLog"),eventCard=$("eventCard"),investmentType=$("investmentType"),sellBtn=$("sellBtn"),restartBtn=$("restartBtn"),wealthFill=$("wealthFill"),milestoneMessage=$("milestoneMessage"),quickStatusBar=$("quickStatusBar"),refreshCooldownEl=$("refreshCooldown");
+const debugPanel=$("debugPanel"),debugInfo=$("debugInfo"),debugStateInput=$("debugStateInput"),applyDebugStateBtn=$("applyDebugStateBtn"),copyDebugStateBtn=$("copyDebugStateBtn"),debugForceEventInput=$("debugForceEvent"),applyDebugEventBtn=$("applyDebugEventBtn");
 let state;
+const debugMode = new URLSearchParams(window.location.search).get("debug")==="1";
+let debugForceEventKey = null;
 const livingCost=()=>LIFE_PLAN_COST[state.lifePlanLevel];
 const net=()=>Math.round(state.cash+state.investmentBalance-state.debt);
 const isCleared=()=>net()>=TARGET_NET_WORTH&&state.debt<CLEAR_DEBT_LIMIT;
@@ -119,6 +122,7 @@ function pickEvent(action){
   state.lastEvents.forEach(k=>{if(w[k])w[k]*=0.2;});
 
   let sum=0; pool.forEach(k=>sum+=w[k]); let r=Math.random()*sum;
+  if(debugMode&&debugForceEventKey&&pool.includes(debugForceEventKey)) return debugForceEventKey;
   for(const k of pool){r-=w[k]; if(r<=0) return k;}
   return pool[0];
 }
@@ -279,9 +283,44 @@ function render(){
   eventLog.innerHTML=state.logs.map(l=>`<li>${l.month}ヶ月目：${l.action} / ${l.event}（${l.eventEffect}）</li>`).join("");
   sellBtn.disabled=!canSell()||state.gameOver||state.cleared;
   document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&(state.lifePlanLevel>=3||state.rebalanceCooldown>0));});
+  if(debugMode) renderDebugPanel();
+}
+
+function renderDebugPanel(){
+  if(!debugPanel) return;
+  debugPanel.hidden=false;
+  const lastLog=state.logs[0];
+  const lastFx=lastLog?lastLog.eventEffect:"-";
+  debugInfo.innerHTML=`<small>finished=${state.finished} / resultType=${state.resultType} / cleared=${state.cleared} / gameOver=${state.gameOver} / net=${net().toLocaleString()} / isCleared=${isCleared()} / gameOverMessage=${gameOverMessage(state.resultType==="gameOver"?"stress":"")} / 直近追加影響=${lastFx}</small>`;
+  debugStateInput.value=JSON.stringify({
+    month:state.month,cash:state.cash,debt:state.debt,hp:state.hp,stress:state.stress,stressDangerMonths:state.stressDangerMonths,income:state.income,lifePlanLevel:state.lifePlanLevel,refreshCooldown:state.refreshCooldown,rebalanceCooldown:state.rebalanceCooldown,sidejobFatigue:state.sidejobFatigue,mainJobScore:state.mainJobScore,investmentBalance:state.investmentBalance,investmentType:state.investmentType,investmentStreak:state.investmentStreak,lastInvestMonth:state.lastInvestMonth,finished:state.finished,resultType:state.resultType,gameOver:state.gameOver,cleared:state.cleared
+  },null,2);
+}
+function applyDebugState(){
+  try{const p=JSON.parse(debugStateInput.value);Object.assign(state,p);render();}catch(e){message.textContent="デバッグJSONの形式が不正です。";}
+}
+function applyPreset(k){
+  const base={finished:false,resultType:null,gameOver:false,cleared:false,month:36,cash:500000,debt:0,hp:80,stress:20,stressDangerMonths:0,investmentBalance:0,investmentType:null,investmentStreak:0,sidejobFatigue:0,mainJobScore:2,lastInvestMonth:null};
+  if(k==="A") Object.assign(state,base,{cash:600000,debt:0});
+  if(k==="B") Object.assign(state,base,{cash:1980000,debt:0,income:220000});
+  if(k==="C") Object.assign(state,base,{cash:1200000,debt:0,income:200000});
+  if(k==="D") Object.assign(state,base,{cash:2200000,debt:220000,month:20});
+  if(k==="E") Object.assign(state,base,{cash:2100000,debt:0,hp:0});
+  if(k==="F") Object.assign(state,base,{month:20,stress:100,stressDangerMonths:2});
+  if(k==="G") Object.assign(state,base,{month:20,stress:95,hp:50});
+  if(k==="H") Object.assign(state,base,{month:20,stress:95,hp:40});
+  if(k==="I") Object.assign(state,base,{month:20,cash:500000,investmentBalance:300000,investmentType:"fund",lastInvestMonth:18});
+  if(k==="J") Object.assign(state,base,{month:10,cash:100000,debt:250000,investmentBalance:50000,investmentType:"fund",lastInvestMonth:10});
+  render();
 }
 
 document.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>doAction(btn.dataset.action)));
 sellBtn.addEventListener("click",()=>doAction("sell"));
 restartBtn.addEventListener("click",resetGame);
+if(debugMode&&debugPanel){
+  applyDebugStateBtn.addEventListener("click",applyDebugState);
+  copyDebugStateBtn.addEventListener("click",()=>navigator.clipboard?.writeText(debugStateInput.value));
+  applyDebugEventBtn.addEventListener("click",()=>{debugForceEventKey=(debugForceEventInput.value||"").trim()||null;render();});
+  document.querySelectorAll("[data-debug-preset]").forEach(btn=>btn.addEventListener("click",()=>applyPreset(btn.dataset.debugPreset)));
+}
 resetGame();

@@ -69,6 +69,30 @@
       <h2>イベントログ（新しい順）</h2>
       <ul id="eventLog"></ul>
     </section>
+    <section id="debugPanel" class="panel" hidden>
+      <details open>
+        <summary>Debug Panel (?debug=1)</summary>
+        <div style="margin-top:8px;display:grid;gap:8px;">
+          <div id="debugInfo"></div>
+          <textarea id="debugStateInput" rows="8" style="width:100%;"></textarea>
+          <div>
+            <button id="applyDebugStateBtn">State反映</button>
+            <button id="copyDebugStateBtn">Stateコピー</button>
+          </div>
+          <div>
+            <label>次イベント固定: </label><input id="debugForceEvent" placeholder="例: sleep / 空で解除" />
+            <button id="applyDebugEventBtn">適用</button>
+          </div>
+          <div class="buttons">
+            <button data-debug-preset="A">A 36ヶ月目開始</button><button data-debug-preset="B">B 36ヶ月クリア確認</button>
+            <button data-debug-preset="C">C 36ヶ月未達確認</button><button data-debug-preset="D">D 純資産達成借金未達</button>
+            <button data-debug-preset="E">E gameOver優先</button><button data-debug-preset="F">F ストレス危険</button>
+            <button data-debug-preset="G">G 高ストレス追加影響</button><button data-debug-preset="H">H 回復確認</button>
+            <button data-debug-preset="I">I 売却確認</button><button data-debug-preset="J">J 無効操作確認</button>
+          </div>
+        </div>
+      </details>
+    </section>
   </main>
 
   <script src="script.js"></script>
