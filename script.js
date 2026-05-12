@@ -187,14 +187,31 @@ function doAction(action){
   let reason=""; if(state.cash<0)reason="cash"; if(state.hp<=0)reason="hp"; if(state.debt>=500000)reason="debt"; if(state.stressDangerMonths>=3)reason="stress"; if(reason)state.gameOver=true;
   if(!state.gameOver&&state.month===MAX_MONTH&&net()>=TARGET_NET_WORTH&&state.debt<200000)state.cleared=true;
 
-  rec.deltaNet=net()-before; state.logs.unshift(rec); state.lastEvents.unshift(evKey); state.lastEvents=state.lastEvents.slice(0,3); setEventCard(ev); showSummary(rec);
+  rec.deltaNet=net()-before; state.logs.unshift(rec); state.lastEvents.unshift(evKey); state.lastEvents=state.lastEvents.slice(0,3); showSummary(rec);
   if(!state.gameOver&&!state.cleared&&state.month<MAX_MONTH)state.month++; else if(!state.gameOver&&!state.cleared&&state.month===MAX_MONTH){state.gameOver=true;reason="time";}
   message.textContent=state.cleared?"🎉 クリア！純資産200万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
+  if(state.gameOver||state.cleared||state.month===MAX_MONTH) setResultCard(reason); else setEventCard(ev);
   render();
 }
 
 function gameOverMessage(r){if(r==="cash")return"現金不足で生活が崩壊した。";if(r==="hp")return"体力が尽きて行動不能。";if(r==="debt")return"借金が膨張し身動き不能。";if(r==="stress")return"心身の限界END：ストレスが限界に達し、生活を続けられなくなった。";return"36ヶ月終了。目標条件を満たせなかった。";}
 function setEventCard(ev){eventCard.className=`event-card ${ev[0].toLowerCase()}`;eventCard.innerHTML=`<div class='event-badge'>${ev[0]}</div><h3>${ev[1]}</h3><p>${ev[2]}</p><p class='event-effect'>効果：${ev[3]}</p>`;}
+function setResultCard(gameOverReason){
+  const nw=net();
+  if(state.gameOver){
+    setEventCard(["BAD","GAME OVER",gameOverMessage(gameOverReason),`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円`]);
+    return;
+  }
+  if(state.cleared){
+    setEventCard(["GOOD","クリア達成","純資産200万円以上 & 借金20万円未満を達成した。",`達成月：${state.month}ヶ月目 / 純資産：${nw.toLocaleString()}円`]);
+    return;
+  }
+  if(state.month===MAX_MONTH){
+    const remain=Math.max(0,TARGET_NET_WORTH-nw);
+    const debtCond=state.debt<200000?"達成":"未達";
+    setEventCard(["WARN","36ヶ月終了","目標の純資産200万円には届かなかった。",`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond}`]);
+  }
+}
 function showSummary(r){
   const b=state.cleared?"<div class='result-banner clear'>🎉 クリア達成</div>":state.gameOver?"<div class='result-banner over'>GAME OVER</div>":"";
   summary.innerHTML=`${b}
