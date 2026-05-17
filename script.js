@@ -5,6 +5,12 @@ const REFRESH_COOLDOWN = 4;
 const REBALANCE_COOLDOWN = 6;
 const TARGET_NET_WORTH = 2000000;
 const CLEAR_DEBT_LIMIT = 200000;
+const INVEST_STREAK_RISK_1_MONTHS = 6;
+const INVEST_STREAK_RISK_1_STRESS = 2;
+const INVEST_STREAK_RISK_2_MONTHS = 10;
+const INVEST_STREAK_RISK_2_STRESS = 4;
+const INVEST_STREAK_RISK_3_MONTHS = 14;
+const INVEST_STREAK_RISK_3_STRESS = 6;
 const LIFE_PLAN_COST = [170000, 160000, 155000, 150000];
 
 const actionLabels = {
@@ -180,6 +186,13 @@ function doAction(action){
 
   if(state.investmentBalance>0&&state.investmentType){const def=investmentDefs[state.investmentType]; const d=Math.round(state.investmentBalance*rand(def.min,def.max)); state.investmentBalance+=d; rec.investPnL+=state.investmentBalance-beforeInv; if(state.investmentType==="crypto"&&d<0&&Math.abs(d)>state.investmentBalance*0.12){state.stress+=16; rec.eventEffect+=` / 追加影響: 乱高下ストレス +16`;}}
   if(state.stress>=90 && ["work","sidejob","invest","borrow","sell"].includes(action)){state.hp-=3; rec.eventEffect+=` / 追加影響: 高ストレス疲労（体力 -3）`;}
+  if(action==="invest"){
+    let riskStress=0, riskLabel="";
+    if(state.investmentStreak>=INVEST_STREAK_RISK_3_MONTHS){riskStress=INVEST_STREAK_RISK_3_STRESS; riskLabel="生活が投資中心になっている";}
+    else if(state.investmentStreak>=INVEST_STREAK_RISK_2_MONTHS){riskStress=INVEST_STREAK_RISK_2_STRESS; riskLabel="相場を見すぎている";}
+    else if(state.investmentStreak>=INVEST_STREAK_RISK_1_MONTHS){riskStress=INVEST_STREAK_RISK_1_STRESS; riskLabel="投資疲れ";}
+    if(riskStress>0){state.stress+=riskStress; rec.eventEffect+=` / 追加影響: ${riskLabel}（ストレス +${riskStress}）`;}
+  }
   if(wasHighStress && action==="rest"){state.stress-=5; rec.eventEffect+=` / 追加影響: 久々に休めた（ストレス -5）`;}
   if(wasHighStress && action==="refresh"){state.stress-=8; rec.eventEffect+=` / 追加影響: しっかり切り替えた（ストレス -8）`;}
 
@@ -311,6 +324,7 @@ function applyPreset(k){
   if(k==="H") Object.assign(state,base,{month:20,stress:95,hp:40});
   if(k==="I") Object.assign(state,base,{month:20,cash:500000,investmentBalance:300000,investmentType:"fund",lastInvestMonth:18});
   if(k==="J") Object.assign(state,base,{month:10,cash:100000,debt:250000,investmentBalance:50000,investmentType:"fund",lastInvestMonth:10});
+  if(k==="K") Object.assign(state,base,{month:16,cash:800000,debt:0,hp:80,stress:40,investmentBalance:500000,investmentType:"fund",investmentStreak:5,lastInvestMonth:14});
   render();
 }
 
