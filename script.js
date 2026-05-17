@@ -213,29 +213,54 @@ function doAction(action){
   else if(state.cleared){state.finished=true; state.resultType="clear";}
   else if(actedOnFinalMonth){state.finished=true; state.resultType="timeUp";}
   message.textContent=state.cleared?"🎉 クリア！純資産200万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
-  if(state.finished) setResultCard(reason); else setEventCard(ev);
+  if(state.finished) setResultCard(reason); else setEventCard([ev[0],ev[1],ev[2],rec.eventEffect]);
   render();
 }
 
 function gameOverMessage(r){if(r==="cash")return"現金不足で生活が崩壊した。";if(r==="hp")return"体力が尽きて行動不能。";if(r==="debt")return"借金が膨張し身動き不能。";if(r==="stress")return"心身の限界END：ストレスが限界に達し、生活を続けられなくなった。";return"36ヶ月終了。目標条件を満たせなかった。";}
-function setEventCard(ev){eventCard.className=`event-card ${ev[0].toLowerCase()}`;eventCard.innerHTML=`<div class='event-badge'>${ev[0]}</div><h3>${ev[1]}</h3><p>${ev[2]}</p><p class='event-effect'>効果：${ev[3]}</p>`;}
+function parseEffectLines(effectText){
+  const raw = String(effectText||"");
+  const parts = raw.split(" / ").map(s=>s.trim()).filter(Boolean);
+  const base = [];
+  const extra = [];
+  for(const p of parts){
+    if(p.startsWith("追加影響:")) extra.push(p.replace(/^追加影響:\s*/,""));
+    else base.push(p);
+  }
+  return {base,extra};
+}
+function formatEffectHtml(effectText){
+  const {base,extra}=parseEffectLines(effectText);
+  const baseLine = base.length?base.join(" / "):String(effectText||"なし");
+  const extraLines = extra.map(x=>`<div class='event-effect-sub'>追加影響：${x}</div>`).join("");
+  return `<p class='event-effect'>効果：${baseLine}</p>${extraLines}`;
+}
+function setEventCard(ev){eventCard.className=`event-card ${ev[0].toLowerCase()}`;eventCard.innerHTML=`<div class='event-badge'>${ev[0]}</div><h3>${ev[1]}</h3><p>${ev[2]}</p>${formatEffectHtml(ev[3])}`;}
 function setResultCard(gameOverReason){
   const nw=net();
+  const lastLog = state.logs[0];
+  const lastEventText = lastLog?`${lastLog.event}（${lastLog.eventEffect}）`:"なし";
+  const lastExtras = lastLog?parseEffectLines(lastLog.eventEffect).extra:[];
+  const lastExtraHtml = lastExtras.length?`<div class='event-effect-sub'>追加影響：${lastExtras.join(" / ")}</div>`:"";
   if(state.resultType==="gameOver"){
-    setEventCard(["BAD","GAME OVER",gameOverMessage(gameOverReason),`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円`]);
+    setEventCard(["BAD","GAME OVER",`${gameOverMessage(gameOverReason)}<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円${lastExtras.length?` / 追加影響あり`:""}`]);
+    if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     return;
   }
   if(state.resultType==="clear"){
-    setEventCard(["GOOD","クリア達成","純資産200万円以上 & 借金20万円未満を達成した。",`達成月：${state.month}ヶ月目 / 純資産：${nw.toLocaleString()}円`]);
+    setEventCard(["GOOD","クリア達成",`純資産200万円以上 & 借金20万円未満を達成した。<br>直前の出来事：${lastEventText}`,`達成月：${state.month}ヶ月目 / 純資産：${nw.toLocaleString()}円${lastExtras.length?` / 追加影響あり`:""}`]);
+    if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     return;
   }
   if(state.resultType==="timeUp"){
     const remain=Math.max(0,TARGET_NET_WORTH-nw);
     const debtCond=state.debt<CLEAR_DEBT_LIMIT?"達成":"未達";
     if(nw>=TARGET_NET_WORTH&&state.debt>=CLEAR_DEBT_LIMIT){
-      setEventCard(["WARN","36ヶ月終了","純資産は目標に届いたが、借金条件を満たせなかった。",`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円 / 借金条件：未達`]);
+      setEventCard(["WARN","36ヶ月終了",`純資産は目標に届いたが、借金条件を満たせなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円 / 借金条件：未達${lastExtras.length?` / 追加影響あり`:""}`]);
+      if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     }else{
-      setEventCard(["WARN","36ヶ月終了","目標の純資産200万円には届かなかった。",`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond}`]);
+      setEventCard(["WARN","36ヶ月終了",`目標の純資産200万円には届かなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond}${lastExtras.length?` / 追加影響あり`:""}`]);
+      if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     }
   }
 }
