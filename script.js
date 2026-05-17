@@ -128,7 +128,7 @@ function pickEvent(action){
 }
 
 function doAction(action){
-  if(state.gameOver||state.cleared) return;
+  if(state.finished||state.gameOver||state.cleared||state.resultType) return;
   if(action==="refresh"&&state.refreshCooldown>0){message.textContent=`リフレッシュはあと${state.refreshCooldown}ヶ月`;render();return;}
   if(action==="refresh"&&state.cash<80000){message.textContent="現金80,000円未満では使えません。";render();return;}
   if(action==="rebalance"&&state.lifePlanLevel>=3){message.textContent="生活見直しは最大レベルです。";render();return;}
@@ -281,8 +281,8 @@ function render(){
 
   wealthFill.style.width=`${clamp(nw/TARGET_NET_WORTH*100,0,100)}%`; milestoneMessage.textContent=progressStatusText();
   eventLog.innerHTML=state.logs.map(l=>`<li>${l.month}ヶ月目：${l.action} / ${l.event}（${l.eventEffect}）</li>`).join("");
-  sellBtn.disabled=!canSell()||state.gameOver||state.cleared;
-  document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&(state.lifePlanLevel>=3||state.rebalanceCooldown>0));});
+  sellBtn.disabled=!canSell()||state.finished||state.gameOver||state.cleared;
+  document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.finished||state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&(state.lifePlanLevel>=3||state.rebalanceCooldown>0));});
   if(debugMode) renderDebugPanel();
 }
 
