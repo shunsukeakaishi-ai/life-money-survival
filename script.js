@@ -85,7 +85,7 @@ const isCleared=()=>net()>=TARGET_NET_WORTH&&state.debt<CLEAR_DEBT_LIMIT;
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
 
-function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,finished:false,resultType:null,logs:[],goodWorkFlag:false,sidejobStreak:0,sidejobFatigue:0,mainJobScore:2,investmentStreak:0,stressDangerMonths:0,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産200万円を目指そう。";render();}
+function resetGame(){state={month:1,cash:100000,income:200000,hp:80,stress:20,debt:0,investmentBalance:0,investmentType:null,lastInvestMonth:null,gameOver:false,cleared:false,finished:false,resultType:null,logs:[],history:[],goodWorkFlag:false,sidejobStreak:0,sidejobFatigue:0,mainJobScore:2,investmentStreak:0,stressDangerMonths:0,reachedTargetOnce:false,firstReachMonth:null,maxNetWorth:100000,maxNetWorthMonth:1,lastEvents:[],refreshCooldown:0,lifePlanLevel:0,rebalanceCooldown:0};setEventCard(["INFO","ゲーム開始","今月の行動を選んでください。","なし"]);summary.textContent="まだ行動していません。";message.textContent="生活を立て直しながら、資産200万円を目指そう。";render();}
 function canSell(){return state.investmentBalance>0&&state.lastInvestMonth!==state.month;}
 
 function pickEvent(action){
@@ -205,14 +205,19 @@ function doAction(action){
   state.hp=clamp(state.hp,0,100); state.stress=clamp(state.stress,0,100); state.sidejobFatigue=clamp(state.sidejobFatigue,0,10); state.mainJobScore=clamp(state.mainJobScore,0,6);
   if(state.stress===100) state.stressDangerMonths+=1; else if(state.stress<90) state.stressDangerMonths=0;
   let reason=""; if(state.cash<0)reason="cash"; if(state.hp<=0)reason="hp"; if(state.debt>=500000)reason="debt"; if(state.stressDangerMonths>=3)reason="stress"; if(reason)state.gameOver=true;
-  if(!state.gameOver&&isCleared())state.cleared=true;
+  const nwAfter=net();
+  if(nwAfter>state.maxNetWorth){state.maxNetWorth=nwAfter; state.maxNetWorthMonth=state.month;}
+  if(!state.reachedTargetOnce&&isCleared()){state.reachedTargetOnce=true; state.firstReachMonth=state.month;}
 
   rec.deltaNet=net()-before; state.logs.unshift(rec); state.lastEvents.unshift(evKey); state.lastEvents=state.lastEvents.slice(0,3); showSummary(rec);
   const actedOnFinalMonth = state.month===MAX_MONTH;
   if(!state.gameOver&&!state.cleared&&state.month<MAX_MONTH)state.month++;
   if(state.gameOver){state.finished=true; state.resultType="gameOver";}
-  else if(state.cleared){state.finished=true; state.resultType="clear";}
-  else if(actedOnFinalMonth){state.finished=true; state.resultType="timeUp";}
+  else if(actedOnFinalMonth){
+    if(isCleared()){state.cleared=true; state.finished=true; state.resultType="clear";}
+    else {state.finished=true; state.resultType="timeUp";}
+  }
+  state.history.push({month:state.month,cash:state.cash,investmentBalance:state.investmentBalance,debt:state.debt,netWorth:nwAfter,hp:state.hp,stress:state.stress,action,eventName:rec.event,investmentType:state.investmentType,sidejobFatigue:state.sidejobFatigue,mainJobScore:state.mainJobScore});
   message.textContent=state.cleared?"🎉 クリア！純資産200万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
   if(state.finished) setResultCard(reason); else setEventCard([ev[0],ev[1],ev[2],rec.eventEffect]);
   render();
@@ -249,7 +254,7 @@ function setResultCard(gameOverReason){
     return;
   }
   if(state.resultType==="clear"){
-    setEventCard(["GOOD","クリア達成",`純資産200万円以上 & 借金20万円未満を達成した。<br>直前の出来事：${lastEventText}`,`達成月：${state.month}ヶ月目 / 純資産：${nw.toLocaleString()}円${lastExtras.length?` / 追加影響あり`:""}`]);
+    setEventCard(["GOOD","クリア達成",`36ヶ月終了時点で、純資産200万円以上 & 借金20万円未満を達成した。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 初到達月：${state.firstReachMonth??"-"}ヶ月目 / 最高純資産：${state.maxNetWorth.toLocaleString()}円（${state.maxNetWorthMonth}ヶ月目） / 借金条件：達成${lastExtras.length?` / 追加影響あり`:""}`]);
     if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     return;
   }
@@ -260,7 +265,7 @@ function setResultCard(gameOverReason){
       setEventCard(["WARN","36ヶ月終了",`純資産は目標に届いたが、借金条件を満たせなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円 / 借金条件：未達${lastExtras.length?` / 追加影響あり`:""}`]);
       if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     }else{
-      setEventCard(["WARN","36ヶ月終了",`目標の純資産200万円には届かなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond}${lastExtras.length?` / 追加影響あり`:""}`]);
+      setEventCard(["WARN","36ヶ月終了",`目標条件には届かなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond} / 初到達月：${state.firstReachMonth??"-"}ヶ月目 / 最高純資産：${state.maxNetWorth.toLocaleString()}円${lastExtras.length?` / 追加影響あり`:""}`]);
       if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     }
   }
@@ -271,6 +276,7 @@ function progressStatusText(){
   if(state.finished&&state.resultType==="timeUp") return "36ヶ月終了：目標未達";
   const nw=net();
   if(nw<TARGET_NET_WORTH) return `目標まであと${(TARGET_NET_WORTH-nw).toLocaleString()}円`;
+  if(state.reachedTargetOnce&&state.debt<CLEAR_DEBT_LIMIT) return "目標到達中：36ヶ月終了時まで維持しよう";
   if(state.debt<CLEAR_DEBT_LIMIT) return "クリア条件達成";
   return "純資産達成 / 借金条件未達";
 }
@@ -339,7 +345,7 @@ function applyDebugState(){
   try{const p=JSON.parse(debugStateInput.value);Object.assign(state,p);render();}catch(e){message.textContent="デバッグJSONの形式が不正です。";}
 }
 function applyPreset(k){
-  const base={finished:false,resultType:null,gameOver:false,cleared:false,month:36,cash:500000,debt:0,hp:80,stress:20,stressDangerMonths:0,investmentBalance:0,investmentType:null,investmentStreak:0,sidejobFatigue:0,mainJobScore:2,lastInvestMonth:null};
+  const base={finished:false,resultType:null,gameOver:false,cleared:false,month:36,cash:500000,debt:0,hp:80,stress:20,stressDangerMonths:0,investmentBalance:0,investmentType:null,investmentStreak:0,sidejobFatigue:0,mainJobScore:2,lastInvestMonth:null,reachedTargetOnce:false,firstReachMonth:null,maxNetWorth:100000,maxNetWorthMonth:1};
   if(k==="A") Object.assign(state,base,{cash:600000,debt:0});
   if(k==="B") Object.assign(state,base,{cash:1980000,debt:0,income:220000});
   if(k==="C") Object.assign(state,base,{cash:1200000,debt:0,income:200000});
@@ -352,6 +358,10 @@ function applyPreset(k){
   if(k==="J") Object.assign(state,base,{month:10,cash:100000,debt:250000,investmentBalance:50000,investmentType:"fund",lastInvestMonth:10});
   if(k==="K") Object.assign(state,base,{month:16,cash:800000,debt:0,hp:80,stress:40,investmentBalance:500000,investmentType:"fund",investmentStreak:5,lastInvestMonth:14});
   if(k==="L") Object.assign(state,base,{month:20,cash:850000,debt:0,hp:55,stress:60,sidejobFatigue:4,investmentBalance:450000,investmentType:"fund",investmentStreak:4,lastInvestMonth:18});
+  if(k==="M") Object.assign(state,base,{month:25,cash:2100000,debt:100000,reachedTargetOnce:true,firstReachMonth:25,maxNetWorth:2100000,maxNetWorthMonth:25});
+  if(k==="N") Object.assign(state,base,{month:36,cash:2050000,debt:0,reachedTargetOnce:true,firstReachMonth:30,maxNetWorth:2150000,maxNetWorthMonth:33});
+  if(k==="O") Object.assign(state,base,{month:36,cash:1200000,debt:0,reachedTargetOnce:false,firstReachMonth:null,maxNetWorth:1500000,maxNetWorthMonth:28});
+  if(k==="P") Object.assign(state,base,{month:36,cash:1800000,debt:0,reachedTargetOnce:true,firstReachMonth:24,maxNetWorth:2200000,maxNetWorthMonth:31});
   render();
 }
 
