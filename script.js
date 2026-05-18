@@ -187,6 +187,7 @@ function doAction(action){
   if(state.investmentBalance>0&&state.investmentType){const def=investmentDefs[state.investmentType]; const d=Math.round(state.investmentBalance*rand(def.min,def.max)); state.investmentBalance+=d; rec.investPnL+=state.investmentBalance-beforeInv; if(state.investmentType==="crypto"&&d<0&&Math.abs(d)>state.investmentBalance*0.12){state.stress+=16; rec.eventEffect+=` / 追加影響: 乱高下ストレス +16`;}}
   if(state.stress>=90 && ["work","sidejob","invest","borrow","sell"].includes(action)){state.hp-=3; rec.eventEffect+=` / 追加影響: 高ストレス疲労（体力 -3）`;}
   if(action==="invest"){
+    if(state.sidejobFatigue>=3){state.stress+=2; rec.eventEffect+=` / 追加影響: 副業と投資の両立疲れ（ストレス +2）`;}
     let riskStress=0, riskLabel="";
     if(state.investmentStreak>=INVEST_STREAK_RISK_3_MONTHS){riskStress=INVEST_STREAK_RISK_3_STRESS; riskLabel="生活が投資中心になっている";}
     else if(state.investmentStreak>=INVEST_STREAK_RISK_2_MONTHS){riskStress=INVEST_STREAK_RISK_2_STRESS; riskLabel="相場を見すぎている";}
@@ -350,6 +351,7 @@ function applyPreset(k){
   if(k==="I") Object.assign(state,base,{month:20,cash:500000,investmentBalance:300000,investmentType:"fund",lastInvestMonth:18});
   if(k==="J") Object.assign(state,base,{month:10,cash:100000,debt:250000,investmentBalance:50000,investmentType:"fund",lastInvestMonth:10});
   if(k==="K") Object.assign(state,base,{month:16,cash:800000,debt:0,hp:80,stress:40,investmentBalance:500000,investmentType:"fund",investmentStreak:5,lastInvestMonth:14});
+  if(k==="L") Object.assign(state,base,{month:20,cash:850000,debt:0,hp:55,stress:60,sidejobFatigue:4,investmentBalance:450000,investmentType:"fund",investmentStreak:4,lastInvestMonth:18});
   render();
 }
 
