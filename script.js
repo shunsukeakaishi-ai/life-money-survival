@@ -75,7 +75,7 @@ const events = {
 
 const $ = id => document.getElementById(id);
 const statusGrid=$("statusGrid"),message=$("message"),summary=$("monthlySummary"),eventLog=$("eventLog"),eventCard=$("eventCard"),investmentType=$("investmentType"),sellBtn=$("sellBtn"),restartBtn=$("restartBtn"),wealthFill=$("wealthFill"),milestoneMessage=$("milestoneMessage"),quickStatusBar=$("quickStatusBar"),refreshCooldownEl=$("refreshCooldown");
-const debugPanel=$("debugPanel"),debugInfo=$("debugInfo"),debugStateInput=$("debugStateInput"),applyDebugStateBtn=$("applyDebugStateBtn"),copyDebugStateBtn=$("copyDebugStateBtn"),debugForceEventInput=$("debugForceEvent"),applyDebugEventBtn=$("applyDebugEventBtn");
+const debugPanel=$("debugPanel"),debugInfo=$("debugInfo"),debugHistoryInfo=$("debugHistoryInfo"),debugStateInput=$("debugStateInput"),applyDebugStateBtn=$("applyDebugStateBtn"),copyDebugStateBtn=$("copyDebugStateBtn"),debugForceEventInput=$("debugForceEvent"),applyDebugEventBtn=$("applyDebugEventBtn");
 let state;
 const debugMode = new URLSearchParams(window.location.search).get("debug")==="1";
 let debugForceEventKey = null;
@@ -280,6 +280,20 @@ function progressStatusText(){
   if(state.debt<CLEAR_DEBT_LIMIT) return "クリア条件達成";
   return "純資産達成 / 借金条件未達";
 }
+function buildResultStats(){
+  return {
+    finalMonth: state.month,
+    finalNetWorth: net(),
+    finalCash: state.cash,
+    finalDebt: state.debt,
+    finalInvestmentBalance: state.investmentBalance,
+    reachedTargetOnce: state.reachedTargetOnce,
+    firstReachMonth: state.firstReachMonth,
+    maxNetWorth: state.maxNetWorth,
+    maxNetWorthMonth: state.maxNetWorthMonth,
+    historyCount: state.history.length
+  };
+}
 function showSummary(r){
   const b=state.cleared?"<div class='result-banner clear'>🎉 クリア達成</div>":state.gameOver?"<div class='result-banner over'>GAME OVER</div>":"";
   summary.innerHTML=`${b}
@@ -336,9 +350,14 @@ function renderDebugPanel(){
   debugPanel.hidden=false;
   const lastLog=state.logs[0];
   const lastFx=lastLog?lastLog.eventEffect:"-";
-  debugInfo.innerHTML=`<small>finished=${state.finished} / resultType=${state.resultType} / cleared=${state.cleared} / gameOver=${state.gameOver} / net=${net().toLocaleString()} / isCleared=${isCleared()} / gameOverMessage=${gameOverMessage(state.resultType==="gameOver"?"stress":"")} / 直近追加影響=${lastFx}</small>`;
+  const stats=buildResultStats();
+  debugInfo.innerHTML=`<small>finished=${state.finished} / resultType=${state.resultType} / cleared=${state.cleared} / gameOver=${state.gameOver} / net=${net().toLocaleString()} / isCleared=${isCleared()} / reachedTargetOnce=${state.reachedTargetOnce} / firstReachMonth=${state.firstReachMonth} / maxNetWorth=${state.maxNetWorth.toLocaleString()}(${state.maxNetWorthMonth}) / gameOverMessage=${gameOverMessage(state.resultType==="gameOver"?"stress":"")} / 直近追加影響=${lastFx}</small>`;
+  if(debugHistoryInfo){
+    const recent=state.history.slice(-5).map(h=>`${h.month}ヶ月目：純資産 ${h.netWorth.toLocaleString()}円 / 現金 ${h.cash.toLocaleString()}円 / 評価額 ${Math.round(h.investmentBalance).toLocaleString()}円 / 借金 ${h.debt.toLocaleString()}円 / 体力 ${h.hp} / ストレス ${h.stress}`).join("<br>");
+    debugHistoryInfo.innerHTML=`<small>history: ${stats.historyCount}件<br>${recent||"まだ記録なし"}</small>`;
+  }
   debugStateInput.value=JSON.stringify({
-    month:state.month,cash:state.cash,debt:state.debt,hp:state.hp,stress:state.stress,stressDangerMonths:state.stressDangerMonths,income:state.income,lifePlanLevel:state.lifePlanLevel,refreshCooldown:state.refreshCooldown,rebalanceCooldown:state.rebalanceCooldown,sidejobFatigue:state.sidejobFatigue,mainJobScore:state.mainJobScore,investmentBalance:state.investmentBalance,investmentType:state.investmentType,investmentStreak:state.investmentStreak,lastInvestMonth:state.lastInvestMonth,finished:state.finished,resultType:state.resultType,gameOver:state.gameOver,cleared:state.cleared
+    month:state.month,cash:state.cash,debt:state.debt,hp:state.hp,stress:state.stress,stressDangerMonths:state.stressDangerMonths,income:state.income,lifePlanLevel:state.lifePlanLevel,refreshCooldown:state.refreshCooldown,rebalanceCooldown:state.rebalanceCooldown,sidejobFatigue:state.sidejobFatigue,mainJobScore:state.mainJobScore,investmentBalance:state.investmentBalance,investmentType:state.investmentType,investmentStreak:state.investmentStreak,lastInvestMonth:state.lastInvestMonth,finished:state.finished,resultType:state.resultType,gameOver:state.gameOver,cleared:state.cleared,reachedTargetOnce:state.reachedTargetOnce,firstReachMonth:state.firstReachMonth,maxNetWorth:state.maxNetWorth,maxNetWorthMonth:state.maxNetWorthMonth,history:state.history
   },null,2);
 }
 function applyDebugState(){
