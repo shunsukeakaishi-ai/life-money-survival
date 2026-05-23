@@ -384,6 +384,28 @@ function applyPreset(k){
   render();
 }
 
+function cloneStateForTest(){
+  return JSON.parse(JSON.stringify(state));
+}
+
+function installTestApi(){
+  if(!window || !window.__TEST_MODE) return;
+  window.__gameTestApi={
+    getState:()=>cloneStateForTest(),
+    setState:(partial)=>{Object.assign(state,partial); render();},
+    doAction,
+    resetGame,
+    net:()=>net(),
+    isCleared:()=>isCleared(),
+    applyPreset,
+    buildResultStats,
+    canSell:()=>canSell(),
+    setInvestmentType:(type)=>{investmentType.value=type;},
+    setForcedEvent:(key)=>{debugForceEventKey=key||null;},
+    isDebugMode:()=>debugMode
+  };
+}
+
 document.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>doAction(btn.dataset.action)));
 sellBtn.addEventListener("click",()=>doAction("sell"));
 restartBtn.addEventListener("click",resetGame);
@@ -393,4 +415,5 @@ if(debugMode&&debugPanel){
   applyDebugEventBtn.addEventListener("click",()=>{debugForceEventKey=(debugForceEventInput.value||"").trim()||null;render();});
   document.querySelectorAll("[data-debug-preset]").forEach(btn=>btn.addEventListener("click",()=>applyPreset(btn.dataset.debugPreset)));
 }
+installTestApi();
 resetGame();
