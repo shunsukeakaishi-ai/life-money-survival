@@ -21,7 +21,7 @@ function createEl() {
 function createHarness(search = '') {
   const ids = [
     'statusGrid','message','monthlySummary','eventLog','eventCard','investmentType','sellBtn','restartBtn','wealthFill','milestoneMessage','quickStatusBar','refreshCooldown',
-    'debugPanel','debugInfo','debugHistoryInfo','debugStateInput','applyDebugStateBtn','copyDebugStateBtn','debugForceEvent','applyDebugEventBtn','resultPanel','resultSummary','resultMeters','resultBadges','resultDetails'
+    'debugPanel','debugInfo','debugHistoryInfo','debugStateInput','applyDebugStateBtn','copyDebugStateBtn','debugForceEvent','applyDebugEventBtn','resultPanel','resultSummary','resultMeters','resultChart','resultBadges','resultDetails'
   ];
   const byId = Object.fromEntries(ids.map((id) => [id, createEl()]));
   byId.investmentType.value = 'fund';
@@ -185,6 +185,19 @@ function run() {
     api.doAction('work');
     const l1 = api.getState();
     assert(JSON.stringify(l0) === JSON.stringify(l1), 'L finished lock failed');
+  }
+
+
+  // sample history generation / buildResultStats consistency
+  {
+    const { api } = createHarness('?debug=1');
+    api.generateSampleHistory('dropAfterReach');
+    const s = api.getState();
+    const stats = api.buildResultStats();
+    assert(s.history.length === 36 && stats.historyCount === 36, 'Sample history count failed');
+    assert(s.reachedTargetOnce === true && s.firstReachMonth != null, 'Sample reach tracking failed');
+    assert(s.resultType === 'timeUp', 'Sample dropAfterReach resultType failed');
+    assert(stats.maxNetWorth === s.maxNetWorth && stats.maxNetWorthMonth === s.maxNetWorthMonth, 'Sample max sync failed');
   }
 
   // M debug panel visibility by URL gate

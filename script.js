@@ -76,7 +76,7 @@ const events = {
 const $ = id => document.getElementById(id);
 const statusGrid=$("statusGrid"),message=$("message"),summary=$("monthlySummary"),eventLog=$("eventLog"),eventCard=$("eventCard"),investmentType=$("investmentType"),sellBtn=$("sellBtn"),restartBtn=$("restartBtn"),wealthFill=$("wealthFill"),milestoneMessage=$("milestoneMessage"),quickStatusBar=$("quickStatusBar"),refreshCooldownEl=$("refreshCooldown");
 const debugPanel=$("debugPanel"),debugInfo=$("debugInfo"),debugHistoryInfo=$("debugHistoryInfo"),debugStateInput=$("debugStateInput"),applyDebugStateBtn=$("applyDebugStateBtn"),copyDebugStateBtn=$("copyDebugStateBtn"),debugForceEventInput=$("debugForceEvent"),applyDebugEventBtn=$("applyDebugEventBtn");
-const resultPanel=$("resultPanel"),resultSummary=$("resultSummary"),resultMeters=$("resultMeters"),resultBadges=$("resultBadges"),resultDetails=$("resultDetails");
+const resultPanel=$("resultPanel"),resultSummary=$("resultSummary"),resultMeters=$("resultMeters"),resultChart=$("resultChart"),resultBadges=$("resultBadges"),resultDetails=$("resultDetails");
 let state;
 const debugMode = new URLSearchParams(window.location.search).get("debug")==="1";
 let debugForceEventKey = null;
@@ -330,6 +330,90 @@ function showSummary(r){
 }
 
 
+
+function escapeHtml(text){
+  return String(text).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+}
+
+function renderNetWorthChart(){
+  if(!resultChart) return;
+  const h=state.history||[];
+  if(h.length<2){
+    resultChart.innerHTML="<div class='chart-note'>資産推移データがまだありません。1ヶ月以上プレイすると推移が表示されます。</div>";
+    return;
+  }
+  const W=760,H=220,p=24;
+  const values=h.map(x=>x.netWorth);
+  const minV=Math.min(...values,0,TARGET_NET_WORTH);
+  const maxV=Math.max(...values,TARGET_NET_WORTH);
+  const range=Math.max(1,maxV-minV);
+  const x=i=>p+(W-2*p)*(i/(h.length-1));
+  const y=v=>H-p-(H-2*p)*((v-minV)/range);
+  const path=values.map((v,i)=>`${i===0?'M':'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  const targetY=y(TARGET_NET_WORTH).toFixed(1);
+  const maxIdx=values.indexOf(Math.max(...values));
+  const maxX=x(maxIdx).toFixed(1), maxY=y(values[maxIdx]).toFixed(1);
+  const reachIdx=state.firstReachMonth?Math.max(0,h.findIndex(e=>e.month===state.firstReachMonth)): -1;
+  const reachMark=reachIdx>=0?`<circle cx="${x(reachIdx).toFixed(1)}" cy="${y(values[reachIdx]).toFixed(1)}" r="4" fill="#10b981" /><text x="${(x(reachIdx)+6).toFixed(1)}" y="${(y(values[reachIdx])-6).toFixed(1)}" fill="#10b981" font-size="11">初到達</text>`:'';
+  resultChart.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="純資産推移グラフ">
+    <rect x="0" y="0" width="${W}" height="${H}" fill="transparent" />
+    <line x1="${p}" y1="${targetY}" x2="${W-p}" y2="${targetY}" stroke="#f59e0b" stroke-dasharray="4 4" />
+    <text x="${p+4}" y="${(targetY-6)}" fill="#f59e0b" font-size="11">目標200万円</text>
+    <path d="${path}" fill="none" stroke="#38bdf8" stroke-width="2" />
+    <circle cx="${maxX}" cy="${maxY}" r="4" fill="#ef4444" />
+    <text x="${(Number(maxX)+6).toFixed(1)}" y="${(Number(maxY)-6).toFixed(1)}" fill="#ef4444" font-size="11">最高値</text>
+    ${reachMark}
+    <text x="${p}" y="${H-6}" fill="#94a3b8" font-size="11">1ヶ月目</text>
+    <text x="${W-p-42}" y="${H-6}" fill="#94a3b8" font-size="11">${h[h.length-1].month}ヶ月目</text>
+  </svg>`;
+}
+
+function generateSampleHistory(kind){
+  const arr=[];
+  let net=100000;
+  for(let m=1;m<=36;m++){
+    let delta=0;
+    if(kind==='steady') delta=42000 + (m%6===0?12000:0);
+    if(kind==='volatile') delta=(m%2===0?120000:-90000) + (m%5===0?150000:0) - (m%7===0?130000:0);
+    if(kind==='dropAfterReach') delta=m<18?105000:(m<28?85000:-70000);
+    if(kind==='lateSpurt') delta=m<30?18000:(m<34?90000:170000);
+    net=Math.max(-100000, net+delta);
+    const debt=kind==='volatile'&&m%9===0?120000:0;
+    const inv=Math.max(0, Math.round(net*0.32));
+    const cash=Math.round(net + debt - inv);
+    const hp=clamp(85-Math.floor(m/3)+(kind==='lateSpurt'&&m>30?-8:0),0,100);
+    const stress=clamp(20+Math.floor(m/2)+(kind==='volatile'?12:0)+(kind==='dropAfterReach'&&m>24?18:0),0,100);
+    arr.push({month:m,cash,investmentBalance:inv,debt,netWorth:net,hp,stress,action:'work',eventName:'サンプル',investmentType:inv>0?(kind==='volatile'?'stock':'fund'):null,sidejobFatigue:clamp(Math.floor(m/5),0,10),mainJobScore:clamp(2+Math.floor(m/8),0,6)});
+  }
+  // force specific outcomes
+  if(kind==='dropAfterReach') arr[35].netWorth=1850000;
+  if(kind==='lateSpurt') arr[35].netWorth=2120000;
+  if(kind==='steady') arr[35].netWorth=2030000;
+
+  state.history=arr;
+  const last=arr[arr.length-1];
+  state.month=last.month;
+  state.cash=last.cash;
+  state.investmentBalance=last.investmentBalance;
+  state.debt=last.debt;
+  state.hp=last.hp;
+  state.stress=last.stress;
+  state.reachedTargetOnce=false;
+  state.firstReachMonth=null;
+  state.maxNetWorth=-Infinity;
+  state.maxNetWorthMonth=1;
+  for(const h of arr){
+    if(h.netWorth>state.maxNetWorth){state.maxNetWorth=h.netWorth;state.maxNetWorthMonth=h.month;}
+    if(!state.reachedTargetOnce && h.netWorth>=TARGET_NET_WORTH && h.debt<CLEAR_DEBT_LIMIT){state.reachedTargetOnce=true;state.firstReachMonth=h.month;}
+  }
+  state.finished=true;
+  state.gameOver=false;
+  state.cleared=last.netWorth>=TARGET_NET_WORTH&&last.debt<CLEAR_DEBT_LIMIT;
+  state.resultType=state.cleared?'clear':'timeUp';
+  state.logs=[{month:last.month,action:'サンプル履歴',event:'デバッグ生成',eventEffect:`${kind}を生成`}];
+  message.textContent='デバッグ用サンプルhistoryを生成しました。今回の結果を確認してください。';
+  render();
+}
 function getActionCounts(){
   const c={work:0,sidejob:0,rest:0,invest:0,borrow:0,refresh:0,rebalance:0,sell:0};
   state.history.forEach(h=>{ if(c[h.action]!=null) c[h.action]++; });
@@ -405,7 +489,8 @@ function renderResult(){
   </div><p class='result-comment'>${comment}</p>`;
 
   resultMeters.innerHTML=meters.map(m=>`<div class='meter-row'><span>${m.label}</span><div class='meter-bar'><div class='meter-fill' style='width:${m.bar}%'></div></div><span>${m.value}${m.suffix}</span></div>`).join('');
-  resultBadges.innerHTML=(badges.length?badges:['該当なし']).map(b=>`<li>${b}</li>`).join('');
+  renderNetWorthChart();
+  resultBadges.innerHTML=(badges.length?badges:['該当なし']).map(b=>`<li>${escapeHtml(b)}</li>`).join('');
   resultDetails.innerHTML=`
     <div class='result-item'><strong>現金</strong>${state.cash.toLocaleString()}円</div>
     <div class='result-item'><strong>投資評価額</strong>${Math.round(state.investmentBalance).toLocaleString()}円</div>
@@ -421,7 +506,7 @@ function renderResult(){
     <div class='result-item'><strong>行動回数</strong>本業${counts.work} / 副業${counts.sidejob} / 投資${counts.invest} / 休養${counts.rest} / リフレッシュ${counts.refresh} / 生活見直し${counts.rebalance} / 借金${counts.borrow} / 売却${counts.sell}</div>`;
   resultPanel.hidden=false;
   if(debugMode&&debugInfo){
-    debugInfo.innerHTML += `<br><small>resultPreview: ${JSON.stringify({stats,meters,badges,comment})}</small>`;
+    debugInfo.innerHTML += `<br><small>resultPreview: ${JSON.stringify({stats,meters,badges,comment,firstReachMonth:state.firstReachMonth,maxNetWorth:state.maxNetWorth,maxNetWorthMonth:state.maxNetWorthMonth,resultType:state.resultType,historyCount:state.history.length})}</small>`;
   }
 }
 
@@ -508,6 +593,7 @@ function installTestApi(){
     canSell:()=>canSell(),
     setInvestmentType:(type)=>{investmentType.value=type;},
     setForcedEvent:(key)=>{debugForceEventKey=key||null;},
+    generateSampleHistory,
     isDebugMode:()=>debugMode
   };
 }
@@ -520,6 +606,7 @@ if(debugMode&&debugPanel){
   copyDebugStateBtn.addEventListener("click",()=>navigator.clipboard?.writeText(debugStateInput.value));
   applyDebugEventBtn.addEventListener("click",()=>{debugForceEventKey=(debugForceEventInput.value||"").trim()||null;render();});
   document.querySelectorAll("[data-debug-preset]").forEach(btn=>btn.addEventListener("click",()=>applyPreset(btn.dataset.debugPreset)));
+  document.querySelectorAll("[data-sample-history]").forEach(btn=>btn.addEventListener("click",()=>generateSampleHistory(btn.dataset.sampleHistory)));
 }
 installTestApi();
 resetGame();

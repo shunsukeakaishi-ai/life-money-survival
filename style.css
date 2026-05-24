@@ -21,3 +21,7 @@ h1{margin:0 0 4px}.subtitle{margin:0;color:var(--muted)}.milestone{margin-top:8p
 .result-comment{margin:8px 0 12px;color:#cbd5e1}
 .result-details{margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
 @media (max-width:640px){.buttons button{flex:1 1 calc(50% - 8px)}}
+
+.result-chart{margin:10px 0 12px;padding:8px;background:#0b1220;border:1px solid #334155;border-radius:8px}
+.result-chart svg{width:100%;height:auto;display:block}
+.chart-note{color:#94a3b8;font-size:13px}
