@@ -255,7 +255,7 @@ function setResultCard(gameOverReason){
     return;
   }
   if(state.resultType==="clear"){
-    setEventCard(["GOOD","クリア達成",`36ヶ月終了時点で、純資産200万円以上 & 借金20万円未満を達成した。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 初到達月：${state.firstReachMonth??"-"}ヶ月目 / 最高純資産：${state.maxNetWorth.toLocaleString()}円（${state.maxNetWorthMonth}ヶ月目） / 借金条件：達成${lastExtras.length?` / 追加影響あり`:""}`]);
+    setEventCard(["GOOD","クリア達成",`36ヶ月終了時点で、純資産200万円以上 & 借金20万円未満を達成した。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 初回到達月：${state.firstReachMonth??"-"}ヶ月目 / 最高純資産：${state.maxNetWorth.toLocaleString()}円（${state.maxNetWorthMonth}ヶ月目） / 借金条件：達成${lastExtras.length?` / 追加影響あり`:""}`]);
     if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     return;
   }
@@ -266,7 +266,7 @@ function setResultCard(gameOverReason){
       setEventCard(["WARN","36ヶ月終了",`純資産は目標に届いたが、借金条件を満たせなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 借金：${state.debt.toLocaleString()}円 / 借金条件：未達${lastExtras.length?` / 追加影響あり`:""}`]);
       if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     }else{
-      setEventCard(["WARN","36ヶ月終了",`目標条件には届かなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond} / 初到達月：${state.firstReachMonth??"-"}ヶ月目 / 最高純資産：${state.maxNetWorth.toLocaleString()}円${lastExtras.length?` / 追加影響あり`:""}`]);
+      setEventCard(["WARN","36ヶ月終了",`目標条件には届かなかった。<br>直前の出来事：${lastEventText}`,`最終純資産：${nw.toLocaleString()}円 / 目標まであと${remain.toLocaleString()}円 / 借金条件：${debtCond} / 初回到達月：${state.firstReachMonth??"-"}ヶ月目 / 最高純資産：${state.maxNetWorth.toLocaleString()}円${lastExtras.length?` / 追加影響あり`:""}`]);
       if(lastExtras.length) eventCard.innerHTML += lastExtraHtml;
     }
   }
@@ -464,10 +464,10 @@ function getResultMeters(counts, stats){
   const aggression=clamp(risky,0,100);
   return [
     {label:'資産達成度',value:clamp(assetRaw,0,999),bar:clamp(assetRaw,0,100),suffix:'%'},
-    {label:'生活安定度',value:stability,bar:stability,suffix:'%'},
-    {label:'体力余裕',value:body,bar:body,suffix:'%'},
+    {label:'家計安定度',value:stability,bar:stability,suffix:'%'},
+    {label:'体力の余裕',value:body,bar:body,suffix:'%'},
     {label:'心の余白',value:mind,bar:mind,suffix:'%'},
-    {label:'攻め度',value:aggression,bar:aggression,suffix:'%'}
+    {label:'攻め姿勢',value:aggression,bar:aggression,suffix:'%'}
   ];
 }
 
@@ -480,7 +480,7 @@ function getResultBadges(counts){
   if(counts.fundUsed>0 && counts.fundUsed>=counts.stockUsed && counts.fundUsed>=counts.cryptoUsed) badges.push({p:5,t:'投資信託派'});
   if(counts.stockUsed>0 && counts.stockUsed>counts.fundUsed && counts.stockUsed>=counts.cryptoUsed) badges.push({p:5,t:'個別株派'});
   if(counts.sidejob>=6) badges.push({p:6,t:'副業チャレンジャー'});
-  if(counts.invest>=10) badges.push({p:7,t:'投資家タイプ'});
+  if(counts.invest>=10) badges.push({p:7,t:'投資活用'});
   if(state.mainJobScore>=6 || counts.work>=10) badges.push({p:8,t:'本業の土台'});
   if(counts.rest>=8) badges.push({p:9,t:'休養上手'});
   return badges.sort((a,b)=>a.p-b.p).slice(0,6).map(x=>x.t);
@@ -508,20 +508,20 @@ function renderResult(){
   const badges=getResultBadges(counts);
   const comment=getResultComment(counts);
   const diff=stats.finalNetWorth-TARGET_NET_WORTH;
-  const resultLabel=state.resultType==='clear'?'クリア':state.resultType==='gameOver'?'GAME OVER':'36ヶ月終了';
-  let diffLabel='目標との差額 0円';
+  const resultLabel=state.resultType==='clear'?'クリア':state.resultType==='gameOver'?'GAME OVER':'目標未達（36ヶ月終了）';
+  let diffLabel='目標との差 0円';
   if(state.resultType==='clear') diffLabel = diff===0?'ちょうど達成':`目標より +${Math.max(0,diff).toLocaleString()}円`;
   else if(state.resultType==='timeUp' && stats.finalNetWorth>=TARGET_NET_WORTH && state.debt>=CLEAR_DEBT_LIMIT) diffLabel='純資産達成 / 借金条件未達';
   else if(state.resultType==='timeUp') diffLabel=`目標まであと${Math.max(0,-diff).toLocaleString()}円`;
   else if(state.resultType==='gameOver') diffLabel = diff>=0?`目標より +${diff.toLocaleString()}円`:`目標まであと${Math.abs(diff).toLocaleString()}円`;
 
   resultSummary.innerHTML=`<div class='result-kv'>
-    <div class='result-item'><strong>結果</strong><div>${resultLabel}</div></div>
+    <div class='result-item'><strong>最終判定</strong><div>${resultLabel}</div></div>
     <div class='result-item'><strong>最終純資産</strong><div>${stats.finalNetWorth.toLocaleString()}円</div></div>
-    <div class='result-item'><strong>目標との差額</strong><div>${diffLabel}</div></div>
-    <div class='result-item'><strong>初到達月</strong><div>${stats.firstReachMonth?`${stats.firstReachMonth}ヶ月目`:'未到達'}</div></div>
+    <div class='result-item'><strong>目標との差</strong><div>${diffLabel}</div></div>
+    <div class='result-item'><strong>初回到達月</strong><div>${stats.firstReachMonth?`${stats.firstReachMonth}ヶ月目`:'未到達'}</div></div>
     <div class='result-item'><strong>最高純資産</strong><div>${stats.maxNetWorth.toLocaleString()}円</div></div>
-    <div class='result-item'><strong>最高純資産月</strong><div>${stats.maxNetWorthMonth}ヶ月目</div></div>
+    <div class='result-item'><strong>最高記録月</strong><div>${stats.maxNetWorthMonth}ヶ月目</div></div>
   </div><p class='result-comment'>${comment}</p>`;
 
   resultMeters.innerHTML=meters.map(m=>`<div class='meter-row'><span>${m.label}</span><div class='meter-bar'><div class='meter-fill' style='width:${m.bar}%'></div></div><span>${m.value}${m.suffix}</span></div>`).join('');
@@ -538,8 +538,8 @@ function renderResult(){
     <div class='result-item'><strong>生活見直しLv</strong>${state.lifePlanLevel}</div>
     <div class='result-item'><strong>リフレッシュ回数</strong>${counts.refresh}</div>
     <div class='result-item'><strong>売却回数</strong>${counts.sell}</div>
-    <div class='result-item'><strong>history件数</strong>${state.history.length}</div>
-    <div class='result-item'><strong>行動回数</strong>本業${counts.work} / 副業${counts.sidejob} / 投資${counts.invest} / 休養${counts.rest} / リフレッシュ${counts.refresh} / 生活見直し${counts.rebalance} / 借金${counts.borrow} / 売却${counts.sell}</div>`;
+    <div class='result-item'><strong>記録月数</strong>${state.history.length}ヶ月</div>
+    <div class='result-item'><strong>行動内訳</strong>本業${counts.work} / 副業${counts.sidejob} / 投資${counts.invest} / 休養${counts.rest} / リフレッシュ${counts.refresh} / 生活見直し${counts.rebalance} / 借金${counts.borrow} / 売却${counts.sell}</div>`;
   resultPanel.hidden=false;
   if(debugMode&&debugInfo){
     debugInfo.innerHTML += `<br><small>resultPreview: ${JSON.stringify({stats,meters,badges,comment,firstReachMonth:state.firstReachMonth,maxNetWorth:state.maxNetWorth,maxNetWorthMonth:state.maxNetWorthMonth,resultType:state.resultType,historyCount:state.history.length})}</small>`;
