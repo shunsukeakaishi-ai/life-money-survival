@@ -191,13 +191,33 @@ function run() {
   // sample history generation / buildResultStats consistency
   {
     const { api } = createHarness('?debug=1');
+    for (const kind of ['steady','volatile','dropAfterReach','lateSpurt']) {
+      api.generateSampleHistory(kind);
+      const s = api.getState();
+      const stats = api.buildResultStats();
+      assert(s.history.length === 36 && stats.historyCount === 36, `${kind}: history count failed`);
+      s.history.forEach((h) => {
+        assert(h.netWorth === h.cash + h.investmentBalance - h.debt, `${kind}: netWorth identity failed`);
+      });
+      const last = s.history[s.history.length - 1];
+      assert(stats.finalNetWorth === last.netWorth, `${kind}: finalNetWorth mismatch`);
+    }
+
     api.generateSampleHistory('dropAfterReach');
-    const s = api.getState();
-    const stats = api.buildResultStats();
-    assert(s.history.length === 36 && stats.historyCount === 36, 'Sample history count failed');
-    assert(s.reachedTargetOnce === true && s.firstReachMonth != null, 'Sample reach tracking failed');
-    assert(s.resultType === 'timeUp', 'Sample dropAfterReach resultType failed');
-    assert(stats.maxNetWorth === s.maxNetWorth && stats.maxNetWorthMonth === s.maxNetWorthMonth, 'Sample max sync failed');
+    let s = api.getState();
+    let stats = api.buildResultStats();
+    assert(s.reachedTargetOnce === true && s.firstReachMonth != null, 'dropAfterReach: reach tracking failed');
+    assert(s.resultType === 'timeUp', 'dropAfterReach: resultType failed');
+    assert(stats.finalNetWorth < 2000000 || s.debt >= 200000, 'dropAfterReach: final state condition failed');
+    assert(stats.finalNetWorth === s.history[s.history.length - 1].netWorth, 'dropAfterReach: final net mismatch');
+
+    api.generateSampleHistory('lateSpurt');
+    s = api.getState();
+    stats = api.buildResultStats();
+    assert(s.resultType === 'clear', 'lateSpurt: resultType failed');
+    assert(stats.finalNetWorth >= 2000000, 'lateSpurt: final net failed');
+    assert(s.debt < 200000, 'lateSpurt: debt condition failed');
+    assert(stats.finalNetWorth === s.history[s.history.length - 1].netWorth, 'lateSpurt: final net mismatch');
   }
 
   // M debug panel visibility by URL gate

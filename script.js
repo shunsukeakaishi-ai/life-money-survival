@@ -371,6 +371,7 @@ function renderNetWorthChart(){
 function generateSampleHistory(kind){
   const arr=[];
   let net=100000;
+  let debt=0;
   for(let m=1;m<=36;m++){
     let delta=0;
     if(kind==='steady') delta=42000 + (m%6===0?12000:0);
@@ -378,26 +379,55 @@ function generateSampleHistory(kind){
     if(kind==='dropAfterReach') delta=m<18?105000:(m<28?85000:-70000);
     if(kind==='lateSpurt') delta=m<30?18000:(m<34?90000:170000);
     net=Math.max(-100000, net+delta);
-    const debt=kind==='volatile'&&m%9===0?120000:0;
+
+    // sample-specific debt profile (for visual variety only)
+    debt = (kind==='volatile'&&m%9===0)?120000:0;
+    if(kind==='dropAfterReach') debt = 0;
+    if(kind==='lateSpurt') debt = 0;
+    if(kind==='steady') debt = 0;
+
     const inv=Math.max(0, Math.round(net*0.32));
-    const cash=Math.round(net + debt - inv);
+    const cash=net + debt - inv;
     const hp=clamp(85-Math.floor(m/3)+(kind==='lateSpurt'&&m>30?-8:0),0,100);
     const stress=clamp(20+Math.floor(m/2)+(kind==='volatile'?12:0)+(kind==='dropAfterReach'&&m>24?18:0),0,100);
-    arr.push({month:m,cash,investmentBalance:inv,debt,netWorth:net,hp,stress,action:'work',eventName:'サンプル',investmentType:inv>0?(kind==='volatile'?'stock':'fund'):null,sidejobFatigue:clamp(Math.floor(m/5),0,10),mainJobScore:clamp(2+Math.floor(m/8),0,6)});
+    const investmentType = inv>0?(kind==='volatile'?'stock':'fund'):null;
+    arr.push({month:m,cash,investmentBalance:inv,debt,netWorth:cash+inv-debt,hp,stress,action:'work',eventName:'サンプル',investmentType,sidejobFatigue:clamp(Math.floor(m/5),0,10),mainJobScore:clamp(2+Math.floor(m/8),0,6)});
   }
-  // force specific outcomes
-  if(kind==='dropAfterReach') arr[35].netWorth=1850000;
-  if(kind==='lateSpurt') arr[35].netWorth=2120000;
-  if(kind==='steady') arr[35].netWorth=2030000;
+
+  // force explicit final outcomes while keeping netWorth identity
+  const last=arr[arr.length-1];
+  if(kind==='dropAfterReach'){
+    last.debt=0;
+    last.netWorth=1850000;
+    last.investmentBalance=Math.round(last.netWorth*0.32);
+    last.cash=last.netWorth+last.debt-last.investmentBalance;
+  }
+  if(kind==='lateSpurt'){
+    last.debt=0;
+    last.netWorth=2120000;
+    last.investmentBalance=Math.round(last.netWorth*0.32);
+    last.cash=last.netWorth+last.debt-last.investmentBalance;
+  }
+  if(kind==='steady'){
+    last.debt=0;
+    last.netWorth=2030000;
+    last.investmentBalance=Math.round(last.netWorth*0.32);
+    last.cash=last.netWorth+last.debt-last.investmentBalance;
+  }
+
+  // normalize all rows to identity: netWorth = cash + invest - debt
+  for(const r of arr){
+    r.netWorth = r.cash + r.investmentBalance - r.debt;
+  }
 
   state.history=arr;
-  const last=arr[arr.length-1];
-  state.month=last.month;
-  state.cash=last.cash;
-  state.investmentBalance=last.investmentBalance;
-  state.debt=last.debt;
-  state.hp=last.hp;
-  state.stress=last.stress;
+  const final=arr[arr.length-1];
+  state.month=final.month;
+  state.cash=final.cash;
+  state.investmentBalance=final.investmentBalance;
+  state.debt=final.debt;
+  state.hp=final.hp;
+  state.stress=final.stress;
   state.reachedTargetOnce=false;
   state.firstReachMonth=null;
   state.maxNetWorth=-Infinity;
@@ -408,12 +438,14 @@ function generateSampleHistory(kind){
   }
   state.finished=true;
   state.gameOver=false;
-  state.cleared=last.netWorth>=TARGET_NET_WORTH&&last.debt<CLEAR_DEBT_LIMIT;
+  const finalNet=state.cash+state.investmentBalance-state.debt;
+  state.cleared=finalNet>=TARGET_NET_WORTH&&state.debt<CLEAR_DEBT_LIMIT;
   state.resultType=state.cleared?'clear':'timeUp';
-  state.logs=[{month:last.month,action:'サンプル履歴',event:'デバッグ生成',eventEffect:`${kind}を生成`}];
+  state.logs=[{month:final.month,action:'サンプル履歴',event:'デバッグ生成',eventEffect:`${kind}を生成`}];
   message.textContent='デバッグ用サンプルhistoryを生成しました。今回の結果を確認してください。';
   render();
 }
+
 function getActionCounts(){
   const c={work:0,sidejob:0,rest:0,invest:0,borrow:0,refresh:0,rebalance:0,sell:0};
   state.history.forEach(h=>{ if(c[h.action]!=null) c[h.action]++; });
@@ -477,7 +509,11 @@ function renderResult(){
   const comment=getResultComment(counts);
   const diff=stats.finalNetWorth-TARGET_NET_WORTH;
   const resultLabel=state.resultType==='clear'?'クリア':state.resultType==='gameOver'?'GAME OVER':'36ヶ月終了';
-  const diffLabel=state.resultType==='clear'?`目標より +${diff.toLocaleString()}円`:`目標まであと${Math.max(0,-diff).toLocaleString()}円`;
+  let diffLabel='目標との差額 0円';
+  if(state.resultType==='clear') diffLabel = diff===0?'ちょうど達成':`目標より +${Math.max(0,diff).toLocaleString()}円`;
+  else if(state.resultType==='timeUp' && stats.finalNetWorth>=TARGET_NET_WORTH && state.debt>=CLEAR_DEBT_LIMIT) diffLabel='純資産達成 / 借金条件未達';
+  else if(state.resultType==='timeUp') diffLabel=`目標まであと${Math.max(0,-diff).toLocaleString()}円`;
+  else if(state.resultType==='gameOver') diffLabel = diff>=0?`目標より +${diff.toLocaleString()}円`:`目標まであと${Math.abs(diff).toLocaleString()}円`;
 
   resultSummary.innerHTML=`<div class='result-kv'>
     <div class='result-item'><strong>結果</strong><div>${resultLabel}</div></div>
