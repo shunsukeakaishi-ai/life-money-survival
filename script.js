@@ -76,6 +76,7 @@ const events = {
 const $ = id => document.getElementById(id);
 const statusGrid=$("statusGrid"),message=$("message"),summary=$("monthlySummary"),eventLog=$("eventLog"),eventCard=$("eventCard"),investmentType=$("investmentType"),sellBtn=$("sellBtn"),restartBtn=$("restartBtn"),wealthFill=$("wealthFill"),milestoneMessage=$("milestoneMessage"),quickStatusBar=$("quickStatusBar"),refreshCooldownEl=$("refreshCooldown");
 const debugPanel=$("debugPanel"),debugInfo=$("debugInfo"),debugHistoryInfo=$("debugHistoryInfo"),debugStateInput=$("debugStateInput"),applyDebugStateBtn=$("applyDebugStateBtn"),copyDebugStateBtn=$("copyDebugStateBtn"),debugForceEventInput=$("debugForceEvent"),applyDebugEventBtn=$("applyDebugEventBtn");
+const resultPanel=$("resultPanel"),resultSummary=$("resultSummary"),resultMeters=$("resultMeters"),resultBadges=$("resultBadges"),resultDetails=$("resultDetails");
 let state;
 const debugMode = new URLSearchParams(window.location.search).get("debug")==="1";
 let debugForceEventKey = null;
@@ -328,6 +329,101 @@ function showSummary(r){
   </ul>`;
 }
 
+
+function getActionCounts(){
+  const c={work:0,sidejob:0,rest:0,invest:0,borrow:0,refresh:0,rebalance:0,sell:0};
+  state.history.forEach(h=>{ if(c[h.action]!=null) c[h.action]++; });
+  return c;
+}
+
+function getResultMeters(counts, stats){
+  const assetRaw=Math.round(stats.finalNetWorth/TARGET_NET_WORTH*100);
+  const debtPenalty=state.debt>=CLEAR_DEBT_LIMIT?35:Math.round(state.debt/10000);
+  const cashBuffer=Math.min(30, Math.round(state.cash/Math.max(1,livingCost())*8));
+  const lifeBonus=state.lifePlanLevel*8;
+  const stability=clamp(70-debtPenalty+cashBuffer+lifeBonus,0,100);
+  const body=clamp(state.hp,0,100);
+  const mind=clamp(100-state.stress,0,100);
+  const risky=(counts.sidejob*3)+(counts.invest*4)+(counts.borrow*6)+(counts.sell*3)+((counts.cryptoUsed||0)*8);
+  const aggression=clamp(risky,0,100);
+  return [
+    {label:'資産達成度',value:clamp(assetRaw,0,999),bar:clamp(assetRaw,0,100),suffix:'%'},
+    {label:'生活安定度',value:stability,bar:stability,suffix:'%'},
+    {label:'体力余裕',value:body,bar:body,suffix:'%'},
+    {label:'心の余白',value:mind,bar:mind,suffix:'%'},
+    {label:'攻め度',value:aggression,bar:aggression,suffix:'%'}
+  ];
+}
+
+function getResultBadges(counts){
+  const badges=[];
+  if(state.resultType==='clear' && (state.hp<=20||state.stress>=85)) badges.push({p:1,t:'心身ギリギリ突破'});
+  if(counts.cryptoUsed>0) badges.push({p:2,t:'仮想通貨チャレンジャー'});
+  if(counts.sell>=1) badges.push({p:3,t:'売却判断'});
+  if(counts.refresh>=1) badges.push({p:4,t:'リフレッシュの切り札'});
+  if(counts.fundUsed>0 && counts.fundUsed>=counts.stockUsed && counts.fundUsed>=counts.cryptoUsed) badges.push({p:5,t:'投資信託派'});
+  if(counts.stockUsed>0 && counts.stockUsed>counts.fundUsed && counts.stockUsed>=counts.cryptoUsed) badges.push({p:5,t:'個別株派'});
+  if(counts.sidejob>=6) badges.push({p:6,t:'副業チャレンジャー'});
+  if(counts.invest>=10) badges.push({p:7,t:'投資家タイプ'});
+  if(state.mainJobScore>=6 || counts.work>=10) badges.push({p:8,t:'本業の土台'});
+  if(counts.rest>=8) badges.push({p:9,t:'休養上手'});
+  return badges.sort((a,b)=>a.p-b.p).slice(0,6).map(x=>x.t);
+}
+
+function getResultComment(counts){
+  if(state.resultType==='gameOver') return '資産形成は進んでいましたが、生活を続ける余力が尽きてしまいました。休養やリフレッシュを挟む判断が重要になりそうです。';
+  if(state.resultType==='clear' && (state.hp<=20 || state.stress>=85)) return '目標には到達しましたが、心身にはかなり無理が残りました。次回は、もう少し余裕を残したクリアを目指してもよさそうです。';
+  if(state.resultType==='clear' && counts.sidejob>=6 && counts.invest>=8) return '副業で現金を作りながら、投資で資産を伸ばしたプレイでした。目標には到達しましたが、体力とストレスには少し負担が残っています。';
+  if(state.resultType==='clear') return '生活を守りながら、無理の少ない資産形成に成功しました。';
+  if(state.resultType==='timeUp' && state.reachedTargetOnce) return '一度は目標に到達しましたが、最後まで維持することはできませんでした。売却や休養のタイミングを見直すと、次回は逃げ切れるかもしれません。';
+  if(state.resultType==='timeUp') return '目標には届きませんでしたが、資産形成の方向性は見えていました。副業や投資のタイミングを少し変えると、次回は届くかもしれません。';
+  return '';
+}
+
+function renderResult(){
+  if(!resultPanel) return;
+  if(!state.finished){ resultPanel.hidden=true; return; }
+  const stats=buildResultStats();
+  const counts=getActionCounts();
+  counts.fundUsed=state.history.filter(h=>h.action==='invest'&&h.investmentType==='fund').length;
+  counts.stockUsed=state.history.filter(h=>h.action==='invest'&&h.investmentType==='stock').length;
+  counts.cryptoUsed=state.history.filter(h=>h.action==='invest'&&h.investmentType==='crypto').length;
+  const meters=getResultMeters(counts,stats);
+  const badges=getResultBadges(counts);
+  const comment=getResultComment(counts);
+  const diff=stats.finalNetWorth-TARGET_NET_WORTH;
+  const resultLabel=state.resultType==='clear'?'クリア':state.resultType==='gameOver'?'GAME OVER':'36ヶ月終了';
+  const diffLabel=state.resultType==='clear'?`目標より +${diff.toLocaleString()}円`:`目標まであと${Math.max(0,-diff).toLocaleString()}円`;
+
+  resultSummary.innerHTML=`<div class='result-kv'>
+    <div class='result-item'><strong>結果</strong><div>${resultLabel}</div></div>
+    <div class='result-item'><strong>最終純資産</strong><div>${stats.finalNetWorth.toLocaleString()}円</div></div>
+    <div class='result-item'><strong>目標との差額</strong><div>${diffLabel}</div></div>
+    <div class='result-item'><strong>初到達月</strong><div>${stats.firstReachMonth?`${stats.firstReachMonth}ヶ月目`:'未到達'}</div></div>
+    <div class='result-item'><strong>最高純資産</strong><div>${stats.maxNetWorth.toLocaleString()}円</div></div>
+    <div class='result-item'><strong>最高純資産月</strong><div>${stats.maxNetWorthMonth}ヶ月目</div></div>
+  </div><p class='result-comment'>${comment}</p>`;
+
+  resultMeters.innerHTML=meters.map(m=>`<div class='meter-row'><span>${m.label}</span><div class='meter-bar'><div class='meter-fill' style='width:${m.bar}%'></div></div><span>${m.value}${m.suffix}</span></div>`).join('');
+  resultBadges.innerHTML=(badges.length?badges:['該当なし']).map(b=>`<li>${b}</li>`).join('');
+  resultDetails.innerHTML=`
+    <div class='result-item'><strong>現金</strong>${state.cash.toLocaleString()}円</div>
+    <div class='result-item'><strong>投資評価額</strong>${Math.round(state.investmentBalance).toLocaleString()}円</div>
+    <div class='result-item'><strong>借金</strong>${state.debt.toLocaleString()}円</div>
+    <div class='result-item'><strong>体力</strong>${state.hp}</div>
+    <div class='result-item'><strong>ストレス</strong>${state.stress}</div>
+    <div class='result-item'><strong>副業疲労</strong>${state.sidejobFatigue}</div>
+    <div class='result-item'><strong>本業評価</strong>${state.mainJobScore}</div>
+    <div class='result-item'><strong>生活見直しLv</strong>${state.lifePlanLevel}</div>
+    <div class='result-item'><strong>リフレッシュ回数</strong>${counts.refresh}</div>
+    <div class='result-item'><strong>売却回数</strong>${counts.sell}</div>
+    <div class='result-item'><strong>history件数</strong>${state.history.length}</div>
+    <div class='result-item'><strong>行動回数</strong>本業${counts.work} / 副業${counts.sidejob} / 投資${counts.invest} / 休養${counts.rest} / リフレッシュ${counts.refresh} / 生活見直し${counts.rebalance} / 借金${counts.borrow} / 売却${counts.sell}</div>`;
+  resultPanel.hidden=false;
+  if(debugMode&&debugInfo){
+    debugInfo.innerHTML += `<br><small>resultPreview: ${JSON.stringify({stats,meters,badges,comment})}</small>`;
+  }
+}
 function render(){
   investmentType.querySelector("option[value='crypto']").disabled=state.month<=12;
   const nw=net();
@@ -343,6 +439,7 @@ function render(){
   sellBtn.disabled=!canSell()||state.finished||state.gameOver||state.cleared;
   document.querySelectorAll("[data-action]").forEach(btn=>{btn.disabled=state.finished||state.gameOver||state.cleared||(btn.dataset.action==="refresh"&&state.refreshCooldown>0)||(btn.dataset.action==="rebalance"&&(state.lifePlanLevel>=3||state.rebalanceCooldown>0));});
   if(debugMode) renderDebugPanel();
+  renderResult();
 }
 
 function renderDebugPanel(){

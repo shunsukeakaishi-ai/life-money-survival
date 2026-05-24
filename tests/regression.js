@@ -21,7 +21,7 @@ function createEl() {
 function createHarness(search = '') {
   const ids = [
     'statusGrid','message','monthlySummary','eventLog','eventCard','investmentType','sellBtn','restartBtn','wealthFill','milestoneMessage','quickStatusBar','refreshCooldown',
-    'debugPanel','debugInfo','debugHistoryInfo','debugStateInput','applyDebugStateBtn','copyDebugStateBtn','debugForceEvent','applyDebugEventBtn'
+    'debugPanel','debugInfo','debugHistoryInfo','debugStateInput','applyDebugStateBtn','copyDebugStateBtn','debugForceEvent','applyDebugEventBtn','resultPanel','resultSummary','resultMeters','resultBadges','resultDetails'
   ];
   const byId = Object.fromEntries(ids.map((id) => [id, createEl()]));
   byId.investmentType.value = 'fund';
