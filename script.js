@@ -219,7 +219,7 @@ function doAction(action){
     else {state.finished=true; state.resultType="timeUp";}
   }
   state.history.push({month:state.month,cash:state.cash,investmentBalance:state.investmentBalance,debt:state.debt,netWorth:nwAfter,hp:state.hp,stress:state.stress,action,eventName:rec.event,investmentType:state.investmentType,sidejobFatigue:state.sidejobFatigue,mainJobScore:state.mainJobScore});
-  message.textContent=state.cleared?"🎉 クリア！純資産200万円以上＆借金20万円未満達成":state.gameOver?gameOverMessage(reason):"今月の行動を選んでください。";
+  message.textContent=state.resultType==="clear"?"リザルトを確認してください。":state.resultType==="timeUp"?"36ヶ月が終了しました。今回の結果を確認してください。":state.resultType==="gameOver"?"ゲームオーバーです。今回の結果を確認してください。":"今月の行動を選んでください。";
   if(state.finished) setResultCard(reason); else setEventCard([ev[0],ev[1],ev[2],rec.eventEffect]);
   render();
 }
@@ -424,7 +424,16 @@ function renderResult(){
     debugInfo.innerHTML += `<br><small>resultPreview: ${JSON.stringify({stats,meters,badges,comment})}</small>`;
   }
 }
+
+function syncMessageByState(){
+  if(state.resultType==="clear") { message.textContent="リザルトを確認してください。"; return; }
+  if(state.resultType==="timeUp") { message.textContent="36ヶ月が終了しました。今回の結果を確認してください。"; return; }
+  if(state.resultType==="gameOver") { message.textContent="ゲームオーバーです。今回の結果を確認してください。"; return; }
+  if(!message.textContent||message.textContent.includes("結果を確認")) message.textContent="今月の行動を選んでください。";
+}
+
 function render(){
+  syncMessageByState();
   investmentType.querySelector("option[value='crypto']").disabled=state.month<=12;
   const nw=net();
   const items=[["現在月",`${state.month}/${MAX_MONTH}`],["現金",`${state.cash.toLocaleString()}円`],["純資産",`${nw.toLocaleString()}円`],["生活費",`${livingCost().toLocaleString()}円`],["生活見直しLv",state.lifePlanLevel],["投資評価額",`${Math.round(state.investmentBalance).toLocaleString()}円`],["借金",`${state.debt.toLocaleString()}円`],["月収",`${state.income.toLocaleString()}円`],["体力",state.hp],["ストレス",state.stress],["ストレス危険",`${state.stressDangerMonths}/3`],["副業疲労",state.sidejobFatigue],["本業評価",state.mainJobScore],["副業連続",`${state.sidejobStreak}ヶ月`],["投資連続",`${state.investmentStreak}ヶ月`],["投資タイプ",state.investmentType?investmentDefs[state.investmentType].label:"なし"],["売却可否",canSell()?"可能":"不可"]];
